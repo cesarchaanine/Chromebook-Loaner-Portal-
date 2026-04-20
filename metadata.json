@@ -1,0 +1,6 @@
+{
+  "name": "AOH - Chromebooks Loaner Portal",
+  "description": "A comprehensive portal for managing Chromebook and charger loans for students across 13 locations. Features student database updates via CSV, quick handout tracking, and detailed reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

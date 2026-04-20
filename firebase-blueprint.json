@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System users (Admins and Techs)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "tech"] },
+        "location": { "type": "string", "description": "Assigned location key" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Students uploaded via CSV for a specific location",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "location"]
+    },
+    "Loan": {
+      "title": "Loan",
+      "description": "Records of Chromebook or charger loans",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["chromebook", "charger"] },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "assetTag": { "type": "string" },
+        "reason": { "type": "string", "enum": ["Lost Chromebook", "Forgotten at Home", "Broken", "Other", "quick"] },
+        "location": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "returned"] },
+        "techId": { "type": "string" },
+        "techName": { "type": "string" },
+        "checkoutAt": { "type": "string", "format": "date-time" },
+        "returnAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "location", "status", "techId", "checkoutAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles"
+    },
+    "/students/{studentDocId}": {
+      "schema": "Student",
+      "description": "Student database records"
+    },
+    "/loans/{loanId}": {
+      "schema": "Loan",
+      "description": "Historical and active loan records"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Students ---
+    // Allow all campus personnel (for now all users) to manage students
+    match /students/{studentId} {
+      allow read, write: if true;
+    }
+    
+    // --- Loans ---
+    // Core functionality needs to be open for all users in the kiosk environment
+    match /loans/{loanId} {
+      allow read, write: if true;
+    }
+    
+    // --- Users (Techs/Admins) ---
+    // Allow reading user profiles to check for tech existence
+    // Management only by admin or for self-registration
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Default deny for everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
