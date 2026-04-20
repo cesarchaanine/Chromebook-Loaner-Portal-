@@ -219,9 +219,8 @@ function MainApp() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const [quickAssetTag, setQuickAssetTag] = useState('');
-  const [chargerStudentId, setChargerStudentId] = useState('');
+  const [chargerSearchQuery, setChargerSearchQuery] = useState('');
   const [chargerQuantity, setChargerQuantity] = useState(1);
-  const [chargerHandoutMode, setChargerHandoutMode] = useState<'id' | 'name'>('id');
   const [chargerSearchResults, setChargerSearchResults] = useState<Student[]>([]);
   const [selectedQuickStudent, setSelectedQuickStudent] = useState<Student | null>(null);
 
@@ -291,7 +290,7 @@ function MainApp() {
     const now = Date.now();
     setResetQuickChargerTs(now);
     localStorage.setItem(`aoh_portal_quick_chg_reset_ts_${selectedLocation}`, now.toString());
-    setChargerStudentId('');
+    setChargerSearchQuery('');
   };
 
   const [uploadStatus, setUploadStatus] = useState<{
@@ -641,11 +640,8 @@ function MainApp() {
   const handleChargerLoan = async (isAnonymous = false, customName?: string) => {
     if (!user) return;
     
-    // Validation based on mode
-    if (!isAnonymous) {
-      if (chargerHandoutMode === 'id' && !chargerStudentId && !selectedQuickStudent) return;
-      if (chargerHandoutMode === 'name' && !selectedQuickStudent && !customName) return;
-    }
+    // Validation: ensure we have something if not anonymous
+    if (!isAnonymous && !chargerSearchQuery && !selectedQuickStudent && !customName) return;
     
     setUploadStatus({ 
       message: `Logging ${chargerQuantity} Charger${chargerQuantity > 1 ? 's' : ''}...`, 
@@ -657,20 +653,21 @@ function MainApp() {
       let targetStudent = selectedQuickStudent;
       const count = Math.max(1, chargerQuantity);
       
-      if (!targetStudent && !isAnonymous && chargerStudentId && chargerHandoutMode === 'id') {
-        const studentResults = await studentService.searchStudents(selectedLocation, chargerStudentId);
-        targetStudent = studentResults.find(s => s.id === chargerStudentId) || null;
+      // If no student selected but we have a query, check for exact ID match one last time
+      if (!targetStudent && !isAnonymous && chargerSearchQuery) {
+        const studentResults = await studentService.searchStudents(selectedLocation, chargerSearchQuery);
+        targetStudent = studentResults.find(s => s.id === chargerSearchQuery) || null;
       }
 
       const loansToCreate = [];
       for (let i = 0; i < count; i++) {
         const loanData: any = {
           type: 'charger',
-          studentId: targetStudent?.id || (isAnonymous ? 'ANON' : (chargerStudentId || 'N/A')),
+          studentId: targetStudent?.id || (isAnonymous ? 'ANON' : (chargerSearchQuery || 'N/A')),
           studentName: targetStudent?.name || customName || (isAnonymous ? 'Quick Handout' : 'Charger Loan'),
           studentEmail: targetStudent?.email || undefined,
-          studentGrade: targetStudent?.grade || undefined,
-          assetTag: i === 0 ? (isAnonymous ? 'CHG-QUICK' : ('CHG-' + (chargerStudentId || 'QUICK'))) : (`CHG-BULK-${Date.now()}-${i}`),
+          studentGrade: targetStudent?.grade || (targetStudent ? 'N/A' : undefined),
+          assetTag: i === 0 ? (isAnonymous ? 'CHG-QUICK' : ('CHG-' + (targetStudent?.id || chargerSearchQuery || 'QUICK'))) : (`CHG-BULK-${Date.now()}-${i}`),
           reason: 'Quick',
           location: selectedLocation,
           techId: user.uid,
@@ -679,10 +676,9 @@ function MainApp() {
         loansToCreate.push(loanService.checkout(loanData));
       }
 
-      const docRefs = await Promise.all(loansToCreate);
+      await Promise.all(loansToCreate);
       
-      // We don't bother manually updating local state for bulk, just reload
-      setChargerStudentId('');
+      setChargerSearchQuery('');
       setSelectedQuickStudent(null);
       setChargerQuantity(1);
       setUploadStatus({ message: `${count} Charger${count > 1 ? 's' : ''} Logged!`, type: 'success' });
@@ -694,10 +690,18 @@ function MainApp() {
   };
 
   const handleQuickChargerSearch = async (val: string) => {
-    setChargerStudentId(val);
-    if (chargerHandoutMode === 'name' && val.length > 1) {
+    setChargerSearchQuery(val);
+    if (val.length > 1) {
       const results = await studentService.searchStudents(selectedLocation, val);
       setChargerSearchResults(results);
+      
+      // Auto-pull/select: If it's an exact ID match and unique, pull it automatically
+      const exactMatch = results.find(s => s.id === val);
+      if (exactMatch && results.length === 1) {
+        setSelectedQuickStudent(exactMatch);
+        setChargerSearchResults([]);
+        setChargerSearchQuery('');
+      }
     } else {
       setChargerSearchResults([]);
     }
@@ -1218,20 +1222,6 @@ function MainApp() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex bg-slate-100 p-1 rounded-lg">
-                  <button 
-                    onClick={() => setChargerHandoutMode('id')}
-                    className={`px-2 py-1 text-[8px] font-black rounded-md transition-all ${chargerHandoutMode === 'id' ? 'bg-white shadow-sm text-maroon-600' : 'text-slate-400'}`}
-                  >
-                    ID
-                  </button>
-                  <button 
-                    onClick={() => setChargerHandoutMode('name')}
-                    className={`px-2 py-1 text-[8px] font-black rounded-md transition-all ${chargerHandoutMode === 'name' ? 'bg-white shadow-sm text-maroon-600' : 'text-slate-400'}`}
-                  >
-                    NAME
-                  </button>
-                </div>
                 <button 
                   onClick={() => handleChargerLoan(true)}
                   className="w-10 h-10 rounded-xl bg-maroon-50 text-maroon-600 flex items-center justify-center hover:bg-maroon-100 transition-all shadow-sm active:scale-95"
@@ -1245,52 +1235,72 @@ function MainApp() {
             <div className="space-y-4 flex flex-col flex-1">
               <div className="relative group">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 text-center">
-                  {chargerHandoutMode === 'id' ? 'SCAN OR ENTER STUDENT ID' : 'SEARCH BY STUDENT NAME'}
+                  SEARCH STUDENT (NAME, EMAIL, OR ID)
                 </label>
                 
                 {selectedQuickStudent ? (
-                  <div className="flex items-center justify-between p-4 bg-maroon-50 border border-maroon-100 rounded-xl">
-                    <div className="text-left">
-                      <p className="text-[10px] font-black text-maroon-900 uppercase">{selectedQuickStudent.name}</p>
-                      <p className="text-[8px] text-maroon-400 font-bold uppercase">{selectedQuickStudent.id}</p>
+                  <div className="flex flex-col p-4 bg-maroon-50 border border-maroon-100 rounded-xl relative">
+                    <div className="text-left space-y-1">
+                      <div className="flex justify-between items-start">
+                        <p className="text-[11px] font-black text-maroon-900 uppercase">{selectedQuickStudent.name}</p>
+                        <button 
+                          onClick={() => setSelectedQuickStudent(null)}
+                          className="p-1 hover:bg-maroon-100 rounded-lg text-maroon-600 transition-colors"
+                        >
+                          <X size={14} strokeWidth={3} />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="flex flex-col">
+                          <span className="text-[7px] font-black text-maroon-400 uppercase tracking-widest">School ID</span>
+                          <span className="text-[10px] font-bold text-maroon-800 uppercase">{selectedQuickStudent.id}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[7px] font-black text-maroon-400 uppercase tracking-widest">Grade</span>
+                          <span className="text-[10px] font-bold text-maroon-800 uppercase">{selectedQuickStudent.grade || 'N/A'}</span>
+                        </div>
+                        <div className="flex flex-col col-span-2 border-t border-maroon-100 pt-1 mt-1">
+                          <span className="text-[7px] font-black text-maroon-400 uppercase tracking-widest">Email</span>
+                          <span className="text-[9px] font-bold text-maroon-800 lowercase truncate">{selectedQuickStudent.email || 'N/A'}</span>
+                        </div>
+                      </div>
                     </div>
-                    <button 
-                      onClick={() => setSelectedQuickStudent(null)}
-                      className="p-1 hover:bg-maroon-100 rounded-lg text-maroon-600 transition-colors"
-                    >
-                      <X size={14} strokeWidth={3} />
-                    </button>
                   </div>
                 ) : (
                   <>
                     <input 
                       type="text" 
-                      value={chargerStudentId}
+                      value={chargerSearchQuery}
                       onChange={(e) => handleQuickChargerSearch(e.target.value)}
-                      placeholder={chargerHandoutMode === 'id' ? 'Scan Student ID...' : 'Type Name...'}
+                      placeholder="Search Name, Email, or Scan ID..."
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          if (chargerHandoutMode === 'id') handleChargerLoan(false);
-                          else if (chargerStudentId) handleChargerLoan(false, chargerStudentId);
+                        if (e.key === 'Enter' && chargerSearchQuery) {
+                          handleChargerLoan(false, chargerSearchQuery);
                         }
                       }}
                       className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-sm focus:ring-1 focus:ring-maroon-600 outline-none transition-all placeholder:text-slate-300"
                     />
                     
-                    {chargerHandoutMode === 'name' && chargerSearchResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 max-h-48 overflow-y-auto overflow-x-hidden p-1 scrollbar-hide">
+                    {chargerSearchResults.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 max-h-56 overflow-y-auto overflow-x-hidden p-1 scrollbar-hide">
                         {chargerSearchResults.map(s => (
                           <button
                             key={s.id}
                             onClick={() => {
                               setSelectedQuickStudent(s);
                               setChargerSearchResults([]);
-                              setChargerStudentId('');
+                              setChargerSearchQuery('');
                             }}
                             className="w-full p-3 text-left hover:bg-slate-50 flex flex-col rounded-lg transition-colors border-b border-slate-50 last:border-0"
                           >
-                            <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{s.name}</span>
-                            <span className="text-[8px] font-bold text-slate-400 uppercase">{s.id}</span>
+                            <div className="flex justify-between items-center mb-0.5">
+                              <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{s.name}</span>
+                              <span className="text-[8px] font-black text-maroon-600 bg-maroon-50 px-1.5 rounded uppercase">Gr: {s.grade || '??'}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-[8px] font-bold text-slate-400 uppercase">ID: {s.id}</span>
+                              <span className="text-[8px] font-medium text-slate-400 lowercase">{s.email || ''}</span>
+                            </div>
                           </button>
                         ))}
                       </div>
@@ -1319,11 +1329,11 @@ function MainApp() {
               </div>
 
               <button 
-                onClick={() => handleChargerLoan(false, (!selectedQuickStudent && chargerHandoutMode === 'name') ? chargerStudentId : undefined)}
+                onClick={() => handleChargerLoan(false, (!selectedQuickStudent && chargerSearchQuery) ? chargerSearchQuery : undefined)}
                 className="w-full bg-maroon-900 border-2 border-maroon-900 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-maroon-800 transition-all active:scale-95 mt-auto"
               >
                 {chargerQuantity > 1 
-                  ? `Log ${chargerQuantity}x Chargers ${(!selectedQuickStudent && !chargerStudentId) ? '(Quick)' : ''}` 
+                  ? `Log ${chargerQuantity}x Chargers ${(!selectedQuickStudent && !chargerSearchQuery) ? '(Quick)' : ''}` 
                   : 'Log Charger Handout'}
               </button>
             </div>

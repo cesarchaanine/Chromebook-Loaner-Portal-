@@ -87,7 +87,8 @@ export const studentService = {
     const lowerTerm = term.toLowerCase();
     return students.filter(s => 
       s.name.toLowerCase().includes(lowerTerm) || 
-      s.id.toLowerCase().includes(lowerTerm)
+      s.id.toLowerCase().includes(lowerTerm) ||
+      (s.email && s.email.toLowerCase().includes(lowerTerm))
     );
   },
 
