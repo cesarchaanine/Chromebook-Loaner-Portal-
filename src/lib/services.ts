@@ -73,6 +73,20 @@ export const loanService = {
       chunk.forEach(doc => batch.delete(doc.ref));
       await batch.commit();
     }
+  },
+
+  async wipeAllLoans() {
+    const loansRef = collection(db, 'loans');
+    const snapshot = await getDocs(loansRef);
+    const chunks = [];
+    for (let i = 0; i < snapshot.docs.length; i += 500) {
+      chunks.push(snapshot.docs.slice(i, i + 500));
+    }
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
   }
 };
 
@@ -126,6 +140,20 @@ export const studentService = {
     for (const chunk of chunks) {
       const batch = writeBatch(db);
       chunk.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    }
+  },
+
+  async wipeAllStudents() {
+    const studentsRef = collection(db, 'students');
+    const snapshot = await getDocs(studentsRef);
+    const chunks = [];
+    for (let i = 0; i < snapshot.docs.length; i += 500) {
+      chunks.push(snapshot.docs.slice(i, i + 500));
+    }
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(d => batch.delete(d.ref));
       await batch.commit();
     }
   }

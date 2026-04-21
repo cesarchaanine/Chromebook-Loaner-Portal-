@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Search, 
   Plus, 
@@ -18,7 +18,9 @@ import {
   Trash2,
   UserPlus,
   ChevronDown,
-  RotateCcw
+  RotateCcw,
+  Home,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -38,6 +40,71 @@ import { loanService, studentService, userService } from './lib/services';
 import Papa from 'papaparse';
 
 // --- Components ---
+
+interface HoldToResetButtonProps {
+  onReset: () => void;
+  label: string;
+  className?: string;
+  icon?: React.ReactNode;
+}
+
+function HoldToResetButton({ onReset, label, className, icon }: HoldToResetButtonProps) {
+  const [isHolding, setIsHolding] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = React.useRef<number>(0);
+
+  const startHold = () => {
+    setIsHolding(true);
+    setProgress(0);
+    startTimeRef.current = Date.now();
+    
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      const newProgress = Math.min((elapsed / 1200) * 100, 100); // 1.2 seconds hold
+      setProgress(newProgress);
+      
+      if (newProgress >= 100) {
+        clearInterval(timerRef.current!);
+        onReset();
+        setIsHolding(false);
+        setProgress(0);
+      }
+    }, 50);
+  };
+
+  const stopHold = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setIsHolding(false);
+    setProgress(0);
+  };
+
+  return (
+    <button
+      onMouseDown={startHold}
+      onMouseUp={stopHold}
+      onMouseLeave={stopHold}
+      onTouchStart={startHold}
+      onTouchEnd={stopHold}
+      className={cn(
+        "relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border border-slate-100 bg-white/50 hover:bg-white hover:border-maroon-100 text-[8px] font-black uppercase tracking-widest transition-all overflow-hidden group shadow-sm active:scale-95",
+        isHolding ? "text-maroon-700 ring-2 ring-maroon-100 ring-offset-1" : "text-slate-400 hover:text-maroon-600",
+        className
+      )}
+    >
+      <div className="relative z-10 flex items-center gap-2">
+        {icon || <RotateCcw size={10} className={cn("transition-transform group-hover:rotate-45", isHolding && "rotate-reverse")} />}
+        <span>{label}</span>
+      </div>
+      {isHolding && (
+        <div 
+          className="absolute inset-0 bg-maroon-50 transition-all duration-75 origin-left"
+          style={{ width: `${progress}%` }}
+        />
+      )}
+    </button>
+  );
+}
 
 function Login() {
   const { loginWithPin, loginWithTechName } = useAuth();
@@ -207,6 +274,50 @@ function ActivityRow(props: any) {
   );
 }
 
+function StatusOverlay({ status, onDismiss }: { status: any, onDismiss: () => void }) {
+  if (!status.type) return null;
+  
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={cn(
+        "absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200",
+        "bg-white/95 backdrop-blur-sm rounded-2xl"
+      )}
+    >
+      <div className={cn(
+        "mb-3 p-3 rounded-full",
+        status.type === 'success' ? "bg-green-50 text-green-600" : 
+        status.type === 'error' ? "bg-red-50 text-red-600" : 
+        "bg-maroon-50 text-maroon-600"
+      )}>
+        {status.type === 'success' ? <CheckCircle2 size={32} /> : 
+         status.type === 'error' ? <AlertCircle size={32} /> :
+         <RotateCcw size={32} className="animate-spin" />}
+      </div>
+      
+      <p className={cn(
+        "text-[10px] font-black uppercase tracking-[0.1em] mb-4 px-4 line-clamp-2",
+        status.type === 'success' ? "text-green-700" : 
+        status.type === 'error' ? "text-red-700" : 
+        "text-maroon-700"
+      )}>
+        {status.message}
+      </p>
+
+      {status.type !== 'loading' && (
+        <button 
+          onClick={onDismiss}
+          className="px-6 py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95"
+        >
+          Dismiss
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
 function MainApp() {
   const { user, logout } = useAuth();
   const [selectedLocation, setSelectedLocation] = useState<LocationKey>((user?.location as LocationKey) || LOCATIONS[0]);
@@ -231,72 +342,142 @@ function MainApp() {
   const [reportEnd, setReportEnd] = useState(new Date().toISOString().split('T')[0]);
   
   // Helper to load location-specific resets
-  const loadLocationResets = (location: string) => {
-    setResetCBOutTs(parseInt(localStorage.getItem(`aoh_portal_cb_reset_ts_${location}`) || '0', 10));
-    setResetChargerTs(parseInt(localStorage.getItem(`aoh_portal_chg_reset_ts_${location}`) || '0', 10));
-    setResetQuickCBTs(parseInt(localStorage.getItem(`aoh_portal_quick_cb_reset_ts_${location}`) || '0', 10));
-    setResetForgottenTs(parseInt(localStorage.getItem(`aoh_portal_forgotten_reset_ts_${location}`) || '0', 10));
-    setResetBrokenTs(parseInt(localStorage.getItem(`aoh_portal_broken_reset_ts_${location}`) || '0', 10));
-    setResetQuickChargerTs(parseInt(localStorage.getItem(`aoh_portal_quick_chg_reset_ts_${location}`) || '0', 10));
-  };
-
   const [resetCBOutTs, setResetCBOutTs] = useState<number>(0);
   const [resetChargerTs, setResetChargerTs] = useState<number>(0);
   const [resetQuickCBTs, setResetQuickCBTs] = useState<number>(0);
   const [resetForgottenTs, setResetForgottenTs] = useState<number>(0);
   const [resetBrokenTs, setResetBrokenTs] = useState<number>(0);
+  const [resetLostTs, setResetLostTs] = useState<number>(0);
   const [resetQuickChargerTs, setResetQuickChargerTs] = useState<number>(0);
+  const [resetQuickAnonChargerTs, setResetQuickAnonChargerTs] = useState<number>(0);
+  const [anonChargerQuantity, setAnonChargerQuantity] = useState(1);
 
-  const handleResetCB = () => {
-    if (!confirm('Reset Chromebook Out count to 0?')) return;
+  const [handoutStatus, setHandoutStatus] = useState<{
+    message: string,
+    type: 'success' | 'error' | 'loading' | null
+  }>({ message: '', type: null });
+
+  const [quickCbStatus, setQuickCbStatus] = useState<{
+    message: string,
+    type: 'success' | 'error' | 'loading' | null
+  }>({ message: '', type: null });
+
+  // Modified loadData to be less disruptive (doesn't clear UI state unless needed)
+  const loadData = useCallback(async (location: string, silent = false) => {
+    if (!location) return;
+    
+    if (!silent) {
+      setActiveLoans([]);
+      setRecentLoans([]);
+      setSearchResults([]);
+      setChargerSearchResults([]);
+    }
+    
+    // Refresh timestamps for local session filtering
+    setResetCBOutTs(parseInt(localStorage.getItem(`aoh_portal_cb_reset_ts_${location}`) || '0', 10));
+    setResetChargerTs(parseInt(localStorage.getItem(`aoh_portal_chg_reset_ts_${location}`) || '0', 10));
+    setResetQuickCBTs(parseInt(localStorage.getItem(`aoh_portal_quick_cb_reset_ts_${location}`) || '0', 10));
+    setResetForgottenTs(parseInt(localStorage.getItem(`aoh_portal_forgotten_reset_ts_${location}`) || '0', 10));
+    setResetBrokenTs(parseInt(localStorage.getItem(`aoh_portal_broken_reset_ts_${location}`) || '0', 10));
+    setResetLostTs(parseInt(localStorage.getItem(`aoh_portal_lost_reset_ts_${location}`) || '0', 10));
+    setResetQuickChargerTs(parseInt(localStorage.getItem(`aoh_portal_quick_chg_reset_ts_${location}`) || '0', 10));
+    setResetQuickAnonChargerTs(parseInt(localStorage.getItem(`aoh_portal_quick_anon_chg_reset_ts_${location}`) || '0', 10));
+
+    try {
+      const [active, recent] = await Promise.all([
+        loanService.getActiveLoans(location),
+        loanService.getRecentLoans(location)
+      ]);
+      setActiveLoans(active);
+      setRecentLoans(recent);
+    } catch (err) {
+      console.error("Data load error:", err);
+    }
+  }, []);
+
+  const handleResetCB = useCallback(() => {
     const now = Date.now();
     setResetCBOutTs(now);
     localStorage.setItem(`aoh_portal_cb_reset_ts_${selectedLocation}`, now.toString());
-  };
+    loadData(selectedLocation);
+    setCheckoutStatus({ message: 'CB Session Reset!', type: 'success' });
+  }, [selectedLocation, loadData]);
 
-  const handleResetCharger = () => {
-    if (!confirm('Reset Charger Loan count to 0?')) return;
+  const handleResetCharger = useCallback(() => {
     const now = Date.now();
     setResetChargerTs(now);
     localStorage.setItem(`aoh_portal_chg_reset_ts_${selectedLocation}`, now.toString());
-  };
+    loadData(selectedLocation);
+    setQuickChargerStatus({ message: 'Charger Session Reset!', type: 'success' });
+  }, [selectedLocation, loadData]);
 
-  const handleResetQuickCB = () => {
-    if (!confirm('Reset Quick CB Session Loans to 0?')) return;
+  const handleResetQuickCB = useCallback(() => {
     const now = Date.now();
     setResetQuickCBTs(now);
     localStorage.setItem(`aoh_portal_quick_cb_reset_ts_${selectedLocation}`, now.toString());
     setQuickAssetTag('');
-    // Trigger immediate re-fetch to update counter
-    loadData();
-  };
+    loadData(selectedLocation);
+    setQuickCbStatus({ message: 'Quick CB Session Reset!', type: 'success' });
+  }, [selectedLocation, loadData]);
 
-  const handleResetForgotten = () => {
-    if (!confirm('Reset Forgotten Count to 0?')) return;
+  const handleResetForgotten = useCallback(() => {
     const now = Date.now();
     setResetForgottenTs(now);
     localStorage.setItem(`aoh_portal_forgotten_reset_ts_${selectedLocation}`, now.toString());
-  };
+    loadData(selectedLocation);
+  }, [selectedLocation, loadData]);
 
-  const handleResetBroken = () => {
-    if (!confirm('Reset Broken Count to 0?')) return;
+  const handleResetBroken = useCallback(() => {
     const now = Date.now();
     setResetBrokenTs(now);
     localStorage.setItem(`aoh_portal_broken_reset_ts_${selectedLocation}`, now.toString());
-  };
+    loadData(selectedLocation);
+  }, [selectedLocation, loadData]);
 
-  const handleResetQuickCharger = () => {
-    if (!confirm('Reset Quick Charger Session to 0?')) return;
+  const handleResetLost = useCallback(() => {
+    const now = Date.now();
+    setResetLostTs(now);
+    localStorage.setItem(`aoh_portal_lost_reset_ts_${selectedLocation}`, now.toString());
+    loadData(selectedLocation);
+  }, [selectedLocation, loadData]);
+
+  const handleResetQuickCharger = useCallback(() => {
     const now = Date.now();
     setResetQuickChargerTs(now);
     localStorage.setItem(`aoh_portal_quick_chg_reset_ts_${selectedLocation}`, now.toString());
     setChargerSearchQuery('');
-  };
+    loadData(selectedLocation);
+    setQuickChargerStatus({ message: 'Named Charger Session Reset!', type: 'success' });
+  }, [selectedLocation, loadData]);
 
-  const [uploadStatus, setUploadStatus] = useState<{
+  const handleResetQuickAnonCharger = useCallback(() => {
+    const now = Date.now();
+    setResetQuickAnonChargerTs(now);
+    localStorage.setItem(`aoh_portal_quick_anon_chg_reset_ts_${selectedLocation}`, now.toString());
+    setAnonChargerQuantity(1);
+    loadData(selectedLocation);
+    setHandoutStatus({ message: 'Anon Charger Session Reset!', type: 'success' });
+  }, [selectedLocation, loadData]);
+
+  const [dbStatus, setDbStatus] = useState<{
     message: string, 
     type: 'success' | 'error' | 'loading' | null,
     progress?: number
+  }>({ message: '', type: null });
+
+  const [techStatus, setTechStatus] = useState<{
+    message: string, 
+    type: 'success' | 'error' | 'loading' | null
+  }>({ message: '', type: null });
+
+  const [checkoutStatus, setCheckoutStatus] = useState<{
+    message: string,
+    type: 'success' | 'error' | 'loading' | null
+  }>({ message: '', type: null });
+
+  const [quickChargerStatus, setQuickChargerStatus] = useState<{
+    message: string,
+    type: 'success' | 'error' | 'loading' | null
   }>({ message: '', type: null });
 
   // Tech Management State
@@ -319,7 +500,9 @@ function MainApp() {
 
   useEffect(() => {
     if (selectedLocation) {
-      loadData();
+      loadData(selectedLocation);
+      setSearchQuery('');
+      setChargerSearchQuery('');
     }
     if (user?.role === 'admin') {
       loadTechs();
@@ -355,7 +538,7 @@ function MainApp() {
     
     // Optimistic Update: Remove from UI immediately
     setTechs(prev => prev.filter(t => t.uid !== uid));
-    setUploadStatus({ message: 'Removing technician...', type: 'loading' });
+    setTechStatus({ message: 'Removing technician...', type: 'loading' });
     setConfirmDeleteId(null);
     
     try {
@@ -363,12 +546,12 @@ function MainApp() {
       await userService.deleteTech(uid);
       // Wait a moment for consistency then reload
       setTimeout(() => loadTechs(), 500);
-      setUploadStatus({ message: 'Technician removed successfully.', type: 'success' });
+      setTechStatus({ message: 'Technician removed successfully.', type: 'success' });
     } catch (err: any) {
       console.error("Deletion error:", err);
       // Rollback on failure
       setTechs(previousTechs);
-      setUploadStatus({ message: 'Failed to remove: ' + err.message, type: 'error' });
+      setTechStatus({ message: 'Failed to remove: ' + err.message, type: 'error' });
     }
   };
 
@@ -386,7 +569,7 @@ function MainApp() {
 
   const handleUpdateTech = async () => {
     if (!editingTechId || !editingTechName) return;
-    setUploadStatus({ message: 'Updating technician...', type: 'loading' });
+    setTechStatus({ message: 'Updating technician...', type: 'loading' });
     try {
       await userService.updateTech(editingTechId, {
         name: editingTechName.trim(),
@@ -394,29 +577,13 @@ function MainApp() {
       });
       setEditingTechId(null);
       await loadTechs();
-      setUploadStatus({ message: 'Technician updated successfully.', type: 'success' });
+      setTechStatus({ message: 'Technician updated successfully.', type: 'success' });
     } catch (err: any) {
       console.error(err);
-      setUploadStatus({ message: 'Update failed: ' + err.message, type: 'error' });
+      setTechStatus({ message: 'Update failed: ' + err.message, type: 'error' });
     }
   };
 
-  const loadData = async () => {
-    // Clear state before loading new location data to avoid ghosting
-    setActiveLoans([]);
-    setRecentLoans([]);
-    setSearchResults([]);
-    loadLocationResets(selectedLocation);
-
-    try {
-      const active = await loanService.getActiveLoans(selectedLocation);
-      const recent = await loanService.getRecentLoans(selectedLocation);
-      setActiveLoans(active);
-      setRecentLoans(recent);
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const handleStudentSearch = async (val: string) => {
     setSearchQuery(val);
@@ -430,7 +597,7 @@ function MainApp() {
 
   const handleCheckout = async () => {
     if (!selectedStudent || !assetTag || !user) return;
-    setIsCheckingOut(true);
+    setCheckoutStatus({ message: 'Logging checkout...', type: 'loading' });
     try {
       await loanService.checkout({
         type: 'chromebook',
@@ -448,9 +615,11 @@ function MainApp() {
       setAssetTag('');
       setSearchQuery('');
       setSearchResults([]);
-      loadData();
-    } catch (err) {
+      setCheckoutStatus({ message: 'Check-out Logged!', type: 'success' });
+      loadData(selectedLocation);
+    } catch (err: any) {
       console.error(err);
+      setCheckoutStatus({ message: 'Failed: ' + err.message, type: 'error' });
     } finally {
       setIsCheckingOut(false);
     }
@@ -458,7 +627,7 @@ function MainApp() {
 
   const handleQuickLoan = async () => {
     if (!quickAssetTag || !user) return;
-    setIsCheckingOut(true);
+    setQuickCbStatus({ message: 'Logging quick loan...', type: 'loading' });
     try {
       await loanService.checkout({
         type: 'chromebook',
@@ -469,27 +638,117 @@ function MainApp() {
         techName: user.name
       });
       setQuickAssetTag('');
-      loadData();
-    } catch (err) {
+      setQuickCbStatus({ message: 'Handout Logged!', type: 'success' });
+      loadData(selectedLocation);
+    } catch (err: any) {
       console.error(err);
+      setQuickCbStatus({ message: 'Failed: ' + err.message, type: 'error' });
     } finally {
       setIsCheckingOut(false);
     }
   };
 
-  const handleResetActivity = async () => {
-    if (!user || user.role !== 'admin') return;
-    if (!confirm(`WARNING: This will permanently delete ALL activity logs and loans for ${selectedLocation}. This cannot be undone. Are you sure?`)) return;
+  const handleResetActivity = useCallback(async (customStatus?: any) => {
+    if (!window.confirm("ARE YOU SURE? This will clear all activity and counts for this LOCATION. (Students remain safe)")) return;
     
-    setUploadStatus({ message: 'Clearing activity feed...', type: 'loading' });
+    const targetStatus = customStatus || setDbStatus;
+    targetStatus({ message: 'Resetting location activity...', type: 'loading' });
+    
+    // INSTANT FEEDBACK
+    setActiveLoans([]);
+    setRecentLoans([]);
+    
     try {
       await loanService.clearLoans(selectedLocation);
-      loadData();
-      setUploadStatus({ message: 'SUCCESS: Activity feed cleared.', type: 'success' });
+      
+      const now = Date.now();
+      const nowStr = now.toString();
+      
+      localStorage.setItem(`aoh_portal_cb_reset_ts_${selectedLocation}`, nowStr);
+      localStorage.setItem(`aoh_portal_chg_reset_ts_${selectedLocation}`, nowStr);
+      localStorage.setItem(`aoh_portal_quick_cb_reset_ts_${selectedLocation}`, nowStr);
+      localStorage.setItem(`aoh_portal_forgotten_reset_ts_${selectedLocation}`, nowStr);
+      localStorage.setItem(`aoh_portal_broken_reset_ts_${selectedLocation}`, nowStr);
+      localStorage.setItem(`aoh_portal_lost_reset_ts_${selectedLocation}`, nowStr);
+      localStorage.setItem(`aoh_portal_quick_chg_reset_ts_${selectedLocation}`, nowStr);
+      localStorage.setItem(`aoh_portal_quick_anon_chg_reset_ts_${selectedLocation}`, nowStr);
+      
+      setResetCBOutTs(now);
+      setResetChargerTs(now);
+      setResetQuickCBTs(now);
+      setResetForgottenTs(now);
+      setResetBrokenTs(now);
+      setResetLostTs(now);
+      setResetQuickChargerTs(now);
+      setResetQuickAnonChargerTs(now);
+      
+      await loadData(selectedLocation);
+      targetStatus({ message: 'SUCCESS: Location activity reset.', type: 'success' });
     } catch (err: any) {
-      setUploadStatus({ message: `FAILED: ${err.message}`, type: 'error' });
+      console.error("Clear activity error:", err);
+      targetStatus({ message: `ERROR: ${err.message}`, type: 'error' });
+      loadData(selectedLocation);
     }
-  };
+  }, [selectedLocation, loadData]);
+
+  const handleSystemWipe = useCallback(async (customStatus?: any) => {
+    if (!window.confirm("GLOBAL WIPE: Delete ALL loan activity across ALL campuses? (Student database will be preserved)")) return;
+    
+    const targetStatus = customStatus || setDbStatus;
+    targetStatus({ message: 'GLOBAL ACTIVITY WIPE IN PROGRESS...', type: 'loading' });
+    
+    setActiveLoans([]);
+    setRecentLoans([]);
+    
+    try {
+      await loanService.wipeAllLoans();
+      
+      const now = Date.now();
+      const nowStr = now.toString();
+
+      LOCATIONS.forEach(loc => {
+        localStorage.setItem(`aoh_portal_cb_reset_ts_${loc}`, nowStr);
+        localStorage.setItem(`aoh_portal_chg_reset_ts_${loc}`, nowStr);
+        localStorage.setItem(`aoh_portal_quick_cb_reset_ts_${loc}`, nowStr);
+        localStorage.setItem(`aoh_portal_forgotten_reset_ts_${loc}`, nowStr);
+        localStorage.setItem(`aoh_portal_broken_reset_ts_${loc}`, nowStr);
+        localStorage.setItem(`aoh_portal_lost_reset_ts_${loc}`, nowStr);
+        localStorage.setItem(`aoh_portal_quick_chg_reset_ts_${loc}`, nowStr);
+        localStorage.setItem(`aoh_portal_quick_anon_chg_reset_ts_${loc}`, nowStr);
+      });
+      
+      setResetCBOutTs(now);
+      setResetChargerTs(now);
+      setResetQuickCBTs(now);
+      setResetForgottenTs(now);
+      setResetBrokenTs(now);
+      setResetLostTs(now);
+      setResetQuickChargerTs(now);
+      setResetQuickAnonChargerTs(now);
+      
+      await loadData(selectedLocation);
+      targetStatus({ message: 'SUCCESS: All campus activity purged.', type: 'success' });
+    } catch (err: any) {
+      console.error("System wipe error:", err);
+      targetStatus({ message: `WIPE FAILED: ${err.message}`, type: 'error' });
+      loadData(selectedLocation);
+    }
+  }, [selectedLocation, loadData]);
+
+  const handleFactoryReset = useCallback(async () => {
+    if (!window.confirm("TOTAL FACTORY RESET: This deletes EVERYTHING (Students, Activity, Techs). Are you absolutely sure?")) return;
+    
+    setDbStatus({ message: 'FACTORY RESET IN PROGRESS...', type: 'loading' });
+    try {
+      await loanService.wipeAllLoans();
+      await studentService.wipeAllStudents();
+      localStorage.clear();
+      window.location.reload();
+    } catch (err: any) {
+      console.error("Factory reset error:", err);
+      setDbStatus({ message: `RESET FAILED: ${err.message}`, type: 'error' });
+    }
+  }, []);
 
   const handleReturn = async (loanId: string) => {
     // Optimistic update
@@ -499,11 +758,11 @@ function MainApp() {
     try {
       await loanService.returnLoan(loanId);
       // Wait a bit to ensure Firestore has updated before re-fetching
-      setTimeout(() => loadData(), 500);
+      setTimeout(() => loadData(selectedLocation), 500);
     } catch (err: any) {
       console.error(err);
-      setUploadStatus({ message: 'Return Failed: ' + err.message, type: 'error' });
-      loadData(); // Revert on failure
+      setCheckoutStatus({ message: 'Return Failed: ' + err.message, type: 'error' });
+      loadData(selectedLocation); // Revert on failure
     }
   };
 
@@ -511,12 +770,12 @@ function MainApp() {
     if (!user || user.role !== 'admin') return;
     if (!confirm(`WARNING: This will permanently delete ALL student records for ${selectedLocation}. This cannot be undone. Are you sure?`)) return;
     
-    setUploadStatus({ message: 'Deleting database...', type: 'loading' });
+    setDbStatus({ message: 'Deleting database...', type: 'loading' });
     try {
       await studentService.clearStudents(selectedLocation);
-      setUploadStatus({ message: 'SUCCESS: Student database cleared.', type: 'success' });
+      setDbStatus({ message: 'SUCCESS: Student database cleared.', type: 'success' });
     } catch (err: any) {
-      setUploadStatus({ message: `FAILED: ${err.message}`, type: 'error' });
+      setDbStatus({ message: `FAILED: ${err.message}`, type: 'error' });
     }
   };
 
@@ -524,7 +783,7 @@ function MainApp() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploadStatus({ message: 'Verifying permissions...', type: 'loading', progress: 0 });
+    setDbStatus({ message: 'Verifying permissions...', type: 'loading', progress: 0 });
 
     Papa.parse(file, {
       header: true,
@@ -566,7 +825,7 @@ function MainApp() {
 
         if (students.length > 0) {
           try {
-            setUploadStatus({ message: `Preparing ${students.length} records...`, type: 'loading', progress: 5 });
+            setDbStatus({ message: `Preparing ${students.length} records...`, type: 'loading', progress: 5 });
             
             // Short delay to ensure Firebase Auth has settled if just reloaded
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -574,22 +833,22 @@ function MainApp() {
             await studentService.uploadStudents(
               selectedLocation, 
               students, 
-              (p) => setUploadStatus(prev => ({ ...prev, progress: Math.max(5, p) }))
+              (p) => setDbStatus(prev => ({ ...prev, progress: Math.max(5, p) }))
             );
             
-            setUploadStatus({ 
+            setDbStatus({ 
               message: `SUCCESS: Updated ${students.length} students for ${selectedLocation}`, 
               type: 'success' 
             });
           } catch (err: any) {
             console.error("Critical Upload Error:", err);
-            setUploadStatus({ 
+            setDbStatus({ 
               message: `FAILED: ${err.code || 'Error'} - ${err.message}`, 
               type: 'error' 
             });
           }
         } else {
-          setUploadStatus({ message: 'FAILED: No valid student data (School Id # / Name) found.', type: 'error' });
+          setDbStatus({ message: 'FAILED: No valid student data (School Id # / Name) found.', type: 'error' });
         }
       }
     });
@@ -640,21 +899,19 @@ function MainApp() {
   const handleChargerLoan = async (isAnonymous = false, customName?: string) => {
     if (!user) return;
     
-    // Validation: ensure we have something if not anonymous
-    if (!isAnonymous && !chargerSearchQuery && !selectedQuickStudent && !customName) return;
-    
-    setUploadStatus({ 
+    const targetStatus = isAnonymous ? setHandoutStatus /* New Anon Section */ : setQuickChargerStatus;
+
+    targetStatus({ 
       message: `Logging ${chargerQuantity} Charger${chargerQuantity > 1 ? 's' : ''}...`, 
-      type: 'loading', 
-      progress: 50 
+      type: 'loading'
     });
 
     try {
       let targetStudent = selectedQuickStudent;
-      const count = Math.max(1, chargerQuantity);
+      const count = isAnonymous ? Math.max(1, anonChargerQuantity) : 1;
       
-      // If no student selected but we have a query, check for exact ID match one last time
-      if (!targetStudent && !isAnonymous && chargerSearchQuery) {
+      // If we are in the "Named" section and no student selected but we have a query
+      if (!targetStudent && !isAnonymous && chargerSearchQuery && chargerSearchQuery.trim().length > 0) {
         const studentResults = await studentService.searchStudents(selectedLocation, chargerSearchQuery);
         targetStudent = studentResults.find(s => s.id === chargerSearchQuery) || null;
       }
@@ -663,12 +920,13 @@ function MainApp() {
       for (let i = 0; i < count; i++) {
         const loanData: any = {
           type: 'charger',
-          studentId: targetStudent?.id || (isAnonymous ? 'ANON' : (chargerSearchQuery || 'N/A')),
-          studentName: targetStudent?.name || customName || (isAnonymous ? 'Quick Handout' : 'Charger Loan'),
-          studentEmail: targetStudent?.email || undefined,
-          studentGrade: targetStudent?.grade || (targetStudent ? 'N/A' : undefined),
-          assetTag: i === 0 ? (isAnonymous ? 'CHG-QUICK' : ('CHG-' + (targetStudent?.id || chargerSearchQuery || 'QUICK'))) : (`CHG-BULK-${Date.now()}-${i}`),
-          reason: 'Quick',
+          studentId: targetStudent?.id || (isAnonymous ? 'ANONYMOUS' : (chargerSearchQuery.trim() || 'N/A')),
+          studentName: targetStudent?.name || customName?.trim() || (isAnonymous ? 'Anonymous Handout' : 'Named Charger Handout'),
+          studentEmail: targetStudent?.email || null,
+          studentGrade: targetStudent?.grade || (targetStudent ? 'N/A' : null),
+          // Interference Guard: Differentiate by reason
+          reason: isAnonymous ? 'Quick-Anon' : 'Quick-Student',
+          assetTag: `CHG-${isAnonymous ? 'ANON' : 'STUDENT'}-${Date.now()}-${i}`,
           location: selectedLocation,
           techId: user.uid,
           techName: user.name
@@ -678,14 +936,17 @@ function MainApp() {
 
       await Promise.all(loansToCreate);
       
-      setChargerSearchQuery('');
-      setSelectedQuickStudent(null);
-      setChargerQuantity(1);
-      setUploadStatus({ message: `${count} Charger${count > 1 ? 's' : ''} Logged!`, type: 'success' });
-      loadData();
+      if (!isAnonymous) {
+        setChargerSearchQuery('');
+        setSelectedQuickStudent(null);
+      }
+      setAnonChargerQuantity(1);
+      targetStatus({ message: `${count} Charger${count > 1 ? 's' : ''} Logged!`, type: 'success' });
+      
+      await loadData(selectedLocation, true); // SILENT LOAD
     } catch (err: any) {
-      console.error(err);
-      setUploadStatus({ message: 'Failed: ' + (err.message || 'Check database'), type: 'error' });
+      console.error("Charger Handout Error:", err);
+      targetStatus({ message: 'Failed: ' + (err.message || 'Check database'), type: 'error' });
     }
   };
 
@@ -711,34 +972,48 @@ function MainApp() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayTs = today.getTime();
+
+    const getTs = (val: any) => {
+      if (typeof val === 'number') return val;
+      if (val && typeof val.toMillis === 'function') return val.toMillis();
+      if (val && typeof val.seconds === 'number') return val.seconds * 1000;
+      return 0;
+    };
     
     // Independent session starts
     const cbStart = Math.max(todayTs, resetCBOutTs);
     const chgStart = Math.max(todayTs, resetChargerTs);
     const forgottenStart = Math.max(todayTs, resetForgottenTs);
     const brokenStart = Math.max(todayTs, resetBrokenTs);
+    const lostStart = Math.max(todayTs, resetLostTs);
     const quickChgStart = Math.max(todayTs, resetQuickChargerTs);
-
-    const cbActive = activeLoans.filter(l => l.type === 'chromebook' && (l.updatedAt || l.checkoutAt) >= cbStart);
-    const chgActive = activeLoans.filter(l => l.type === 'charger' && (l.updatedAt || l.checkoutAt) >= chgStart);
-    
-    // Bug Fix: All dashboard counters now only count ACTIVE loans if return-removal is desired
-    const forgottenCount = activeLoans.filter(l => l.reason === 'Forgotten at Home' && (l.updatedAt || l.checkoutAt) >= forgottenStart).length;
-    const brokenCount = activeLoans.filter(l => l.reason === 'Broken' && (l.updatedAt || l.checkoutAt) >= brokenStart).length;
-    
+    const anonChgStart = Math.max(todayTs, resetQuickAnonChargerTs);
     const quickCbStart = Math.max(todayTs, resetQuickCBTs);
-    const quickHandoutCount = activeLoans.filter(l => l.reason === 'Quick' && (l.updatedAt || l.checkoutAt) >= quickCbStart).length;
-    const quickChargerCount = activeLoans.filter(l => l.type === 'charger' && l.reason === 'Quick' && (l.updatedAt || l.checkoutAt) >= quickChgStart).length;
+
+    const cbActiveFiltered = activeLoans.filter(l => l.type === 'chromebook' && getTs(l.updatedAt || l.checkoutAt) >= cbStart);
+    const chgActiveFiltered = activeLoans.filter(l => l.type === 'charger' && getTs(l.updatedAt || l.checkoutAt) >= chgStart);
+    
+    const forgottenCount = activeLoans.filter(l => l.reason === 'Forgotten at Home' && getTs(l.updatedAt || l.checkoutAt) >= forgottenStart).length;
+    const brokenCount = activeLoans.filter(l => l.reason === 'Broken' && getTs(l.updatedAt || l.checkoutAt) >= brokenStart).length;
+    const lostCount = activeLoans.filter(l => l.reason === 'Lost Chromebook' && getTs(l.updatedAt || l.checkoutAt) >= lostStart).length;
+    
+    const quickHandoutCount = activeLoans.filter(l => l.type === 'chromebook' && l.reason === 'Quick' && getTs(l.updatedAt || l.checkoutAt) >= quickCbStart).length;
+    
+    // Split Chargers: Named vs Anon
+    const namedChargerCount = activeLoans.filter(l => l.type === 'charger' && l.reason === 'Quick-Student' && getTs(l.updatedAt || l.checkoutAt) >= quickChgStart).length;
+    const anonChargerCount = activeLoans.filter(l => l.type === 'charger' && l.reason === 'Quick-Anon' && getTs(l.updatedAt || l.checkoutAt) >= anonChgStart).length;
 
     return {
-      chromebooksOut: cbActive.length,
-      chargersOut: chgActive.length,
+      chromebooksOut: cbActiveFiltered.length,
+      chargersOut: chgActiveFiltered.length,
       forgottenToday: forgottenCount,
       brokenToday: brokenCount,
+      lostToday: lostCount,
       quickCbOut: quickHandoutCount,
-      quickChargersToday: quickChargerCount
+      namedChargersToday: namedChargerCount,
+      anonChargersToday: anonChargerCount
     };
-  }, [activeLoans, recentLoans, resetCBOutTs, resetChargerTs, resetForgottenTs, resetBrokenTs, resetQuickChargerTs, resetQuickCBTs]);
+  }, [activeLoans, recentLoans, resetCBOutTs, resetChargerTs, resetForgottenTs, resetBrokenTs, resetLostTs, resetQuickChargerTs, resetQuickCBTs, resetQuickAnonChargerTs]);
 
   const [firstName, lastName] = useMemo(() => {
     if (!selectedStudent) return ['', ''];
@@ -839,99 +1114,107 @@ function MainApp() {
       {/* Main Layout Grid */}
       <main className="flex-1 p-6 space-y-6">
         
-        {/* Visual Counts Dashboard */}
+        {/* Row 1: Visual Counts Dashboard */}
         <section className="relative">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center justify-between group hover:shadow-md transition-all relative overflow-hidden">
-            <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Chromebooks Out</span>
-              <p className="text-3xl font-black text-maroon-600 leading-tight">{stats.chromebooksOut}</p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="w-10 h-10 bg-maroon-50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Monitor size={20} className="text-maroon-600" />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-32">
+              <div className="flex justify-between items-start">
+                <div className="w-8 h-8 bg-maroon-50 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Monitor size={16} className="text-maroon-600" />
+                </div>
+                <HoldToResetButton onReset={handleResetCB} label="R" icon={<RotateCcw size={8} />} />
               </div>
-              <button 
-                onClick={handleResetCB}
-                className="text-[8px] font-black text-slate-300 hover:text-maroon-600 uppercase tracking-widest flex items-center gap-1 transition-colors"
-                title="Reset Chromebook Count"
-              >
-                <RotateCcw size={8} /> RESET
-              </button>
+              <div>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1 text-maroon-600">CB LOANS</span>
+                <p className="text-2xl font-black text-maroon-800 leading-tight">{stats.chromebooksOut}</p>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center justify-between group hover:shadow-md transition-all relative overflow-hidden">
-            <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Chargers Loaned</span>
-              <p className="text-3xl font-black text-amber-600 leading-tight">{stats.chargersOut}</p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Zap size={20} className="text-amber-600" />
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-32">
+              <div className="flex justify-between items-start">
+                <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Zap size={16} className="text-amber-600" />
+                </div>
+                <HoldToResetButton onReset={handleResetQuickCharger} label="R" icon={<RotateCcw size={8} />} />
               </div>
-              <button 
-                onClick={handleResetCharger}
-                className="text-[8px] font-black text-slate-300 hover:text-amber-600 uppercase tracking-widest flex items-center gap-1 transition-colors"
-                title="Reset Charger Count"
-              >
-                <RotateCcw size={8} /> RESET
-              </button>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center justify-between group hover:shadow-md transition-all relative overflow-hidden">
-            <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Forgotten Today</span>
-              <p className="text-3xl font-black text-blue-600 leading-tight">{stats.forgottenToday}</p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Clock size={20} className="text-blue-600" />
+              <div>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1 text-amber-500">NAMED CHG</span>
+                <p className="text-2xl font-black text-amber-700 leading-tight">{stats.namedChargersToday}</p>
               </div>
-              <button 
-                onClick={handleResetForgotten}
-                className="text-[8px] font-black text-slate-300 hover:text-blue-600 uppercase tracking-widest flex items-center gap-1 transition-colors"
-                title="Reset Forgotten Count"
-              >
-                <RotateCcw size={8} /> RESET
-              </button>
             </div>
-          </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center justify-between group hover:shadow-md transition-all relative overflow-hidden">
-            <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Broken Cases</span>
-              <p className="text-3xl font-black text-emerald-600 leading-tight">{stats.brokenToday}</p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Shield size={20} className="text-emerald-600" />
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-32">
+              <div className="flex justify-between items-start">
+                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Zap size={16} className="text-blue-600" />
+                </div>
+                <HoldToResetButton onReset={handleResetQuickAnonCharger} label="R" icon={<RotateCcw size={8} />} />
               </div>
-              <button 
-                onClick={handleResetBroken}
-                className="text-[8px] font-black text-slate-300 hover:text-emerald-600 uppercase tracking-widest flex items-center gap-1 transition-colors"
-                title="Reset Broken Count"
-              >
-                <RotateCcw size={8} /> RESET
-              </button>
+              <div>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1 text-blue-500">ANON CHG</span>
+                <p className="text-2xl font-black text-blue-800 leading-tight">{stats.anonChargersToday}</p>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-32">
+              <div className="flex justify-between items-start">
+                <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Home size={16} className="text-slate-400" />
+                </div>
+                <HoldToResetButton onReset={handleResetForgotten} label="R" icon={<RotateCcw size={8} />} />
+              </div>
+              <div>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">FORGOTTEN</span>
+                <p className="text-2xl font-black text-slate-600 leading-tight">{stats.forgottenToday}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-32">
+              <div className="flex justify-between items-start">
+                <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <AlertTriangle size={16} className="text-red-600" />
+                </div>
+                <HoldToResetButton onReset={handleResetBroken} label="R" icon={<RotateCcw size={8} />} />
+              </div>
+              <div>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1 text-red-400">BROKEN</span>
+                <p className="text-2xl font-black text-red-600 leading-tight">{stats.brokenToday}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-32">
+              <div className="flex justify-between items-start">
+                <div className="w-8 h-8 bg-maroon-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <AlertCircle size={16} className="text-maroon-900" />
+                </div>
+                <HoldToResetButton onReset={handleResetLost} label="R" icon={<RotateCcw size={8} />} />
+              </div>
+              <div>
+                <span className="text-[8px] font-black text-maroon-700 uppercase tracking-widest block leading-none mb-1 text-maroon-900">LOST CB</span>
+                <p className="text-2xl font-black text-maroon-950 leading-tight">{stats.lostToday}</p>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
         {/* Row 1: Checkout + Detail + Quick */}
         <div className="grid grid-cols-12 gap-6">
           
           {/* Checkout Card */}
-          <section className="col-span-12 lg:col-span-6 xl:col-span-6 bg-white rounded-2xl shadow-md border border-slate-200 flex flex-col overflow-hidden">
+          <section className="col-span-12 lg:col-span-6 xl:col-span-6 bg-white rounded-2xl shadow-md border border-slate-200 flex flex-col overflow-hidden relative">
+            <StatusOverlay status={checkoutStatus} onDismiss={() => setCheckoutStatus({ message: '', type: null })} />
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <h3 className="font-bold flex items-center gap-2 text-slate-800 text-xs uppercase tracking-widest">
                 <Shield size={16} className="text-maroon-600" /> CHROMEBOOK CHECKOUT
               </h3>
               <div className="flex flex-col items-end">
                 <span className="text-2xl font-black text-maroon-600 leading-none">{stats.chromebooksOut}</span>
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">SESSION HANDOUTS</span>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-2">SESSION LOANS</span>
+                <HoldToResetButton 
+                  onReset={handleResetCB}
+                  label="RESET"
+                  icon={<RotateCcw size={10} />}
+                />
               </div>
             </div>
 
@@ -1013,7 +1296,7 @@ function MainApp() {
                             : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white"
                         )}
                       >
-                        {r}
+                      {r === 'Lost Chromebook' ? 'LOST Device' : r}
                       </button>
                     ))}
                   </div>
@@ -1088,34 +1371,23 @@ function MainApp() {
           </section>
 
           {/* Quick CB Loan Card */}
-          <section className="col-span-12 lg:col-span-3 xl:col-span-3 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col">
-            <div className="flex justify-between items-center mb-10">
+          <section className="col-span-12 lg:col-span-3 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-hidden">
+            <StatusOverlay status={quickCbStatus} onDismiss={() => setQuickCbStatus({ message: '', type: null })} />
+            <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
                 <Monitor size={14} className="text-maroon-600" /> QUICK CB LOAN
               </h3>
-              <span className="text-[8px] font-black bg-slate-50 text-slate-400 px-2 py-0.5 rounded border border-slate-100 uppercase tracking-widest">ACTIVE</span>
+              <div className="flex flex-col items-end">
+                <span className="text-lg font-black text-maroon-600 leading-none">{stats.quickCbOut}</span>
+                <HoldToResetButton 
+                  onReset={handleResetQuickCB}
+                  label="RESET"
+                  icon={<RotateCcw size={10} />}
+                />
+              </div>
             </div>
 
-            <div className="flex flex-col items-center flex-1 space-y-6 text-center">
-              <div>
-                <div className="relative inline-block mt-4">
-                  <span className="text-5xl font-black text-maroon-600">
-                    {stats.quickCbOut}
-                  </span>
-                  <div className="absolute -top-2 -right-6">
-                    <span className="block text-[7px] font-black text-maroon-300 uppercase tracking-widest leading-none">Total</span>
-                  </div>
-                  <button 
-                    onClick={handleResetQuickCB}
-                    className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[8px] font-black text-slate-300 hover:text-maroon-600 uppercase tracking-[0.2em] flex items-center gap-1 transition-colors whitespace-nowrap"
-                    title="Reset Quick CB Session"
-                  >
-                    <RotateCcw size={8} /> RESET QUICK
-                  </button>
-                </div>
-                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8">SESSION LOANS</span>
-              </div>
-
+            <div className="flex flex-col items-center flex-1 space-y-4 text-center">
               <div className="w-full space-y-2">
                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block text-center">CB # OR ASSET TAG</label>
                 <input 
@@ -1132,9 +1404,56 @@ function MainApp() {
                 disabled={!quickAssetTag || isCheckingOut}
                 className="w-full bg-[#a38087] text-white py-4 rounded-lg font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-maroon-700 transition-all active:scale-95 disabled:opacity-50"
               >
-                Hand Out Chromebook
+                Hand Out CB
               </button>
-              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">NO STUDENT ID REQUIRED</p>
+              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">NO STUDENT REQUIRED</p>
+            </div>
+          </section>
+
+          {/* New Anonymous Charger Section */}
+          <section className="col-span-12 lg:col-span-3 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-hidden">
+            <StatusOverlay status={handoutStatus} onDismiss={() => setHandoutStatus({ message: '', type: null })} />
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
+                <Zap size={14} className="text-blue-600" /> ANON CHARGER
+              </h3>
+              <div className="flex flex-col items-end">
+                <span className="text-lg font-black text-blue-600 leading-none">{stats.anonChargersToday}</span>
+                <HoldToResetButton 
+                  onReset={handleResetQuickAnonCharger}
+                  label="RESET"
+                  icon={<RotateCcw size={10} />}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center flex-1 space-y-4 text-center">
+               <div className="flex flex-col items-center">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">QUANTITY</label>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => setChargerQuantity(q => Math.max(1, q - 1))}
+                      className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all font-bold"
+                    >
+                      -
+                    </button>
+                    <span className="text-xl font-black text-slate-800 w-6 text-center">{chargerQuantity}</span>
+                    <button 
+                      onClick={() => setChargerQuantity(q => q + 1)}
+                      className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => handleChargerLoan(true)}
+                  className="w-full bg-blue-600 text-white py-4 rounded-lg font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-blue-700 transition-all active:scale-95 mt-auto"
+                >
+                  Log {chargerQuantity}x Anon Handout
+                </button>
+                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">ISOLATED FROM NAMED LOANS</p>
             </div>
           </section>
 
@@ -1167,31 +1486,31 @@ function MainApp() {
                   <p className="text-[8px] text-slate-400 font-medium mt-1 uppercase">Required: School Id #, Names</p>
                 </div>
                 
-                {uploadStatus.type && (
+                {dbStatus.type && (
                   <div className={cn(
                     "absolute inset-0 flex items-center justify-center bg-white/95 backdrop-blur-[2px] transition-all z-10",
-                    uploadStatus.type === 'success' ? "text-green-600" : (uploadStatus.type === 'error' ? "text-red-600" : "text-maroon-600")
+                    dbStatus.type === 'success' ? "text-green-600" : (dbStatus.type === 'error' ? "text-red-600" : "text-maroon-600")
                   )}>
                     <div className="flex flex-col items-center gap-2 w-full max-w-[90%]">
-                      {uploadStatus.type === 'success' ? <CheckCircle2 size={32} /> : 
-                       uploadStatus.type === 'error' ? <AlertCircle size={32} /> :
+                      {dbStatus.type === 'success' ? <CheckCircle2 size={32} /> : 
+                       dbStatus.type === 'error' ? <AlertCircle size={32} /> :
                        <div className="w-10 h-10 border-4 border-maroon-600/20 border-t-maroon-600 rounded-full animate-spin" />}
                       
-                      <span className="font-black text-[9px] uppercase tracking-widest text-center px-4 leading-tight">{uploadStatus.message}</span>
+                      <span className="font-black text-[9px] uppercase tracking-widest text-center px-4 leading-tight">{dbStatus.message}</span>
                       
-                      {uploadStatus.type === 'loading' && (
+                      {dbStatus.type === 'loading' && (
                         <div className="w-full bg-slate-100 h-1 rounded-full mt-4 overflow-hidden max-w-[150px]">
                           <motion.div 
                             className="bg-maroon-600 h-full"
                             initial={{ width: 0 }}
-                            animate={{ width: `${uploadStatus.progress || 0}%` }}
+                            animate={{ width: `${dbStatus.progress || 0}%` }}
                           />
                         </div>
                       )}
 
-                      {uploadStatus.type !== 'loading' && (
+                      {dbStatus.type !== 'loading' && (
                         <button 
-                          onClick={() => setUploadStatus({ message: '', type: null })} 
+                          onClick={() => setDbStatus({ message: '', type: null })} 
                           className="text-[9px] underline uppercase tracking-widest mt-4 font-bold text-slate-500"
                         >
                           Dismiss
@@ -1201,35 +1520,70 @@ function MainApp() {
                   </div>
                 )}
               </label>
+
+              {/* Session Control Center */}
+              <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4">
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <Clock size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-wider">Session Management</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                    Reset activity markers for this campus or globally. This clears dashboard counts and history but keeps your uploaded student lists safe.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={handleResetActivity}
+                      className="py-3 bg-white border border-slate-200 text-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest hover:border-maroon-600 hover:text-maroon-600 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                    >
+                      <RotateCcw size={10} /> Campus Reset
+                    </button>
+                    <button 
+                      onClick={handleSystemWipe}
+                      className="py-3 bg-white border border-slate-200 text-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest hover:border-maroon-600 hover:text-maroon-600 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                    >
+                      <History size={10} /> Global Reset
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-red-50 border border-red-100 rounded-xl space-y-3">
+                  <div className="flex items-center gap-2 text-red-700">
+                    <AlertTriangle size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-wider">Danger Zone</span>
+                  </div>
+                  <p className="text-[9px] text-red-600 font-bold leading-relaxed">
+                    A total wipe deletes students, technicians, and all activity history. This cannot be undone.
+                  </p>
+                  <button 
+                    onClick={handleFactoryReset}
+                    className="w-full py-3 bg-red-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-700 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                  >
+                    <Trash2 size={12} /> Factory Reset (Total Wipe)
+                  </button>
+                </div>
+              </div>
             </section>
           )}
 
           {/* Quick Charger Loan Card */}
-          <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-visible">
+          <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-hidden">
+            <StatusOverlay status={quickChargerStatus} onDismiss={() => setQuickChargerStatus({ message: '', type: null })} />
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
                 <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
                   <Zap size={16} className="text-maroon-600" /> QUICK CHARGER LOAN
                 </h3>
                 <div className="flex flex-col">
-                  <span className="text-lg font-black text-maroon-600 leading-none">{stats.quickChargersToday}</span>
-                  <button 
-                    onClick={handleResetQuickCharger}
-                    className="text-[6px] font-black text-slate-300 hover:text-maroon-600 uppercase tracking-widest flex items-center gap-0.5 transition-colors"
-                  >
-                    <RotateCcw size={6} /> RESET
-                  </button>
+                  <span className="text-lg font-black text-maroon-600 leading-none">{stats.namedChargersToday}</span>
+                  <HoldToResetButton 
+                    onReset={handleResetQuickCharger}
+                    label="RESET"
+                    icon={<RotateCcw size={10} />}
+                  />
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => handleChargerLoan(true)}
-                  className="w-10 h-10 rounded-xl bg-maroon-50 text-maroon-600 flex items-center justify-center hover:bg-maroon-100 transition-all shadow-sm active:scale-95"
-                  title={`Add ${chargerQuantity} Anonymous Charger${chargerQuantity > 1 ? 's' : ''}`}
-                >
-                  <Plus size={20} />
-                </button>
-              </div>
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">WITH STUDENT INFO</span>
             </div>
             
             <div className="space-y-4 flex flex-col flex-1">
@@ -1309,76 +1663,70 @@ function MainApp() {
                 )}
               </div>
 
-              <div className="flex flex-col items-center">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">QUANTITY</label>
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => setChargerQuantity(q => Math.max(1, q - 1))}
-                    className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all font-bold"
-                  >
-                    -
-                  </button>
-                  <span className="text-2xl font-black text-slate-800 w-8 text-center">{chargerQuantity}</span>
-                  <button 
-                    onClick={() => setChargerQuantity(q => q + 1)}
-                    className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all font-bold"
-                  >
-                    +
-                  </button>
-                </div>
+              <div className="flex flex-col items-center flex-1 justify-center py-4">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-lg italic">
+                  One charger per student name/ID
+                </p>
               </div>
 
               <button 
                 onClick={() => handleChargerLoan(false, (!selectedQuickStudent && chargerSearchQuery) ? chargerSearchQuery : undefined)}
                 className="w-full bg-maroon-900 border-2 border-maroon-900 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-maroon-800 transition-all active:scale-95 mt-auto"
               >
-                {chargerQuantity > 1 
-                  ? `Log ${chargerQuantity}x Chargers ${(!selectedQuickStudent && !chargerSearchQuery) ? '(Quick)' : ''}` 
-                  : 'Log Charger Handout'}
+                Log Charger Handout
               </button>
             </div>
           </section>
 
           {/* Admin: Tech Management Card */}
           {user?.role === 'admin' && (
-            <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col">
+            <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-hidden">
+              <StatusOverlay status={techStatus} onDismiss={() => setTechStatus({ message: '', type: null })} />
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
                   <UserPlus size={16} className="text-maroon-600" /> REGISTER TECHS
                 </h3>
-                <div className="flex items-center gap-2">
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Manage</span>
-                   <button 
-                     onClick={() => setIsManageMode(!isManageMode)}
-                     className={`w-8 h-4 rounded-full p-0.5 transition-all flex items-center ${isManageMode ? 'bg-maroon-600' : 'bg-slate-200'}`}
-                   >
-                     <div className={`w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform ${isManageMode ? 'translate-x-4' : 'translate-x-0'}`} />
-                   </button>
-                </div>
               </div>
 
-              <div className="flex gap-2 mb-4">
-                <input 
-                  type="text" 
-                  value={newTechName} 
-                  onChange={(e) => setNewTechName(e.target.value)} 
-                  placeholder="Full Name" 
-                  className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                />
-                <select 
-                  value={newTechLocation} 
-                  onChange={(e) => setNewTechLocation(e.target.value as LocationKey)} 
-                  className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold"
-                >
-                  {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                </select>
-                <button 
-                  onClick={handleRegisterTech}
-                  disabled={!newTechName || isRegisteringTech}
-                  className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-950 disabled:opacity-50"
-                >
-                  {isRegisteringTech ? '...' : 'ADD'}
-                </button>
+              <div className="space-y-4 mb-4">
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newTechName} 
+                    onChange={(e) => setNewTechName(e.target.value)} 
+                    placeholder="Full Name" 
+                    className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  />
+                  <select 
+                    value={newTechLocation} 
+                    onChange={(e) => setNewTechLocation(e.target.value as LocationKey)} 
+                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold"
+                  >
+                    {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                  </select>
+                  <button 
+                    onClick={handleRegisterTech}
+                    disabled={!newTechName || isRegisteringTech}
+                    className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-950 disabled:opacity-50"
+                  >
+                    {isRegisteringTech ? '...' : 'ADD'}
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-50">
+                  <button 
+                    onClick={() => handleResetActivity(setTechStatus)}
+                    className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw size={10} /> Reset Campus
+                  </button>
+                  <button 
+                    onClick={() => handleSystemWipe(setTechStatus)}
+                    className="px-3 py-2 bg-maroon-50 text-maroon-600 border border-maroon-100 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-maroon-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <History size={10} /> Global Reset
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 max-h-48 overflow-y-auto space-y-2 pr-2">
@@ -1441,24 +1789,22 @@ function MainApp() {
                               <span className="block text-[10px] font-black text-slate-800 uppercase tracking-tight">{t.name}</span>
                               <span className="text-[8px] font-black text-maroon-600 uppercase tracking-widest mt-1 inline-block">{t.location}</span>
                             </div>
-                            {isManageMode && (
-                              <div className="flex gap-1.5 animate-in slide-in-from-right-2 duration-200">
-                                <button 
-                                  onClick={() => handleStartEditTech(t)}
-                                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-md transition-all"
-                                  title="Edit Tech"
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </button>
-                                <button 
-                                  onClick={() => setConfirmDeleteId(t.uid)}
-                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all border border-red-100"
-                                  title="Remove Tech"
-                                >
-                                   <X size={14} className="stroke-[3]" />
-                                </button>
-                              </div>
-                            )}
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => handleStartEditTech(t)}
+                                className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                                title="Edit Tech"
+                              >
+                                <UserPlus size={14} />
+                              </button>
+                              <button 
+                                onClick={() => setConfirmDeleteId(t.uid)}
+                                className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+                                title="Remove Tech"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </div>
                         )}
                      </div>
@@ -1501,19 +1847,19 @@ function MainApp() {
             </div>
 
             {/* Activity & Report Column */}
-            <div className="col-span-12 lg:col-span-7 flex flex-col gap-4">
+            <div className="col-span-12 lg:col-span-7 flex flex-col gap-4 relative overflow-hidden">
+              <StatusOverlay status={dbStatus} onDismiss={() => setDbStatus({ message: '', type: null })} />
               <div className="flex-1 bg-white border border-slate-200 rounded-xl flex flex-col min-h-[300px] overflow-hidden">
                 <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">ACTIVITY FEED</span>
                     {user?.role === 'admin' && (
-                      <button 
-                        onClick={handleResetActivity}
-                        className="text-slate-300 hover:text-red-500 transition-colors"
-                        title="Reset All Activity"
-                      >
-                        <RotateCcw size={12} />
-                      </button>
+                      <HoldToResetButton 
+                        onReset={handleResetActivity}
+                        label="HOLD TO CLEAR"
+                        className="text-slate-300 hover:text-red-500"
+                        icon={<RotateCcw size={12} />}
+                      />
                     )}
                   </div>
                   <div className="flex items-center gap-4">
