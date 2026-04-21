@@ -59,6 +59,18 @@ export const loanService = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
   },
 
+  async getLoansByDateRange(location: string, startTs: number, endTs: number) {
+    const q = query(
+      collection(db, 'loans'),
+      where('location', '==', location),
+      where('checkoutAt', '>=', startTs),
+      where('checkoutAt', '<=', endTs),
+      orderBy('checkoutAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
+  },
+
   async clearLoans(location: string) {
     const q = query(collection(db, 'loans'), where('location', '==', location));
     const snapshot = await getDocs(q);
