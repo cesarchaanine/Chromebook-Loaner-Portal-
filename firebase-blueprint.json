@@ -34,13 +34,15 @@
         "studentId": { "type": "string" },
         "studentName": { "type": "string" },
         "assetTag": { "type": "string" },
-        "reason": { "type": "string", "enum": ["Lost Chromebook", "Forgotten at Home", "Broken", "Other", "quick"] },
+        "reason": { "type": "string", "enum": ["Lost Chromebook", "Forgotten at Home", "Broken", "Other", "quick", "CB Dead / Needs Charging"] },
         "location": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "returned"] },
         "techId": { "type": "string" },
         "techName": { "type": "string" },
         "checkoutAt": { "type": "string", "format": "date-time" },
-        "returnAt": { "type": "string", "format": "date-time" }
+        "returnAt": { "type": "string", "format": "date-time" },
+        "classroom": { "type": "string" },
+        "teacherName": { "type": "string" }
       },
       "required": ["type", "location", "status", "techId", "checkoutAt"]
     }

@@ -9,7 +9,7 @@ export interface User {
 }
 
 export type LoanType = 'chromebook' | 'charger';
-export type LoanReason = 'Lost Chromebook' | 'Forgotten at Home' | 'Broken' | 'Other' | 'Quick';
+export type LoanReason = 'Lost Chromebook' | 'Forgotten at Home' | 'Broken' | 'Other' | 'Quick' | 'CB Dead / Needs Charging';
 export type LoanStatus = 'active' | 'returned';
 
 export interface Student {
@@ -36,6 +36,8 @@ export interface Loan {
   checkoutAt: number; // timestamp
   returnAt?: number; // timestamp
   updatedAt?: number; // timestamp for sorting activity
+  classroom?: string;
+  teacherName?: string;
 }
 
 export const LOCATIONS = [

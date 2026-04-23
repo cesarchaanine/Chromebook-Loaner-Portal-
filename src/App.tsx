@@ -87,7 +87,7 @@ function HoldToResetButton({ onReset, label, className, icon }: HoldToResetButto
       onTouchStart={startHold}
       onTouchEnd={stopHold}
       className={cn(
-        "relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border border-slate-100 bg-white/50 hover:bg-white hover:border-maroon-100 text-[8px] font-black uppercase tracking-widest transition-all overflow-hidden group shadow-sm active:scale-95",
+        "relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border-2 border-maroon-900 bg-white/50 hover:bg-white hover:border-maroon-600 text-[8px] font-black uppercase tracking-widest transition-all overflow-hidden group shadow-sm active:scale-95",
         isHolding ? "text-maroon-700 ring-2 ring-maroon-100 ring-offset-1" : "text-slate-400 hover:text-maroon-600",
         className
       )}
@@ -150,7 +150,7 @@ function Login() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white rounded-[40px] p-12 shadow-2xl border border-slate-200 relative overflow-hidden"
+        className="w-full max-w-md bg-white rounded-[40px] p-12 shadow-2xl border-2 border-maroon-900 relative overflow-hidden"
       >
         <div className="absolute top-0 left-0 w-full h-2 bg-maroon-600" />
         
@@ -163,7 +163,7 @@ function Login() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-[10px] font-bold flex items-center gap-3"
+            className="mb-8 p-4 bg-red-50 border-2 border-maroon-900 rounded-2xl text-red-600 text-[10px] font-bold flex items-center gap-3"
           >
             <AlertCircle size={18} />
             {error}
@@ -179,22 +179,22 @@ function Login() {
                 value={techName}
                 onChange={(e) => setTechName(e.target.value)}
                 placeholder="First Last"
-                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-maroon-500 outline-none transition-all"
+                className="w-full p-4 bg-slate-50 border-2 border-maroon-900 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-maroon-500 outline-none transition-all"
               />
             </div>
             <button
               type="submit"
               disabled={loading || !techName}
-              className="w-full py-4 bg-maroon-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-maroon-700 transition-all shadow-xl shadow-maroon-100 active:scale-[0.98] disabled:opacity-50"
+              className="w-full py-4 bg-maroon-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-maroon-700 transition-all shadow-xl shadow-maroon-100 active:scale-[0.98] disabled:opacity-50 border-2 border-maroon-900"
             >
               Log in to My Campus
             </button>
           </form>
 
           <div className="relative flex items-center py-4">
-            <div className="flex-grow border-t border-slate-100"></div>
+            <div className="flex-grow border-t-2 border-maroon-900"></div>
             <span className="flex-shrink mx-4 text-[10px] uppercase font-black text-slate-300">ADMIN ONLY</span>
-            <div className="flex-grow border-t border-slate-100"></div>
+            <div className="flex-grow border-t-2 border-maroon-900"></div>
           </div>
 
           <form onSubmit={handlePinLogin} className="flex gap-2">
@@ -203,19 +203,19 @@ function Login() {
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="PIN"
-              className="w-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono focus:ring-2 focus:ring-slate-400 outline-none transition-all"
+              className="w-24 p-3 bg-slate-50 border-2 border-maroon-900 rounded-xl text-center font-mono focus:ring-2 focus:ring-slate-400 outline-none transition-all"
             />
             <button
               type="submit"
               disabled={loading || pin.length < 4}
-              className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-slate-950 transition-all active:scale-[0.98] disabled:opacity-50"
+              className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-slate-950 transition-all active:scale-[0.98] disabled:opacity-50 border-2 border-maroon-900"
             >
               Admin Access
             </button>
           </form>
         </div>
         
-        <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col items-center gap-4">
+        <div className="mt-12 pt-8 border-t-2 border-maroon-900 flex flex-col items-center gap-4">
           <p className="text-center text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-loose max-w-[200px]">
             Security Notice: Access restricted to assigned campus personnel.
           </p>
@@ -228,19 +228,26 @@ function Login() {
 function ActivityRow(props: any) {
   const { loan, onReturn } = props;
   return (
-    <div className="text-[10px] flex justify-between items-center border-b border-slate-50/50 pb-3 group last:border-0 hover:bg-slate-50/50 px-2 rounded-lg transition-all">
+    <div className="text-[10px] flex justify-between items-center border-2 border-maroon-900 mb-3 group hover:bg-slate-50/50 px-4 py-2 rounded-xl transition-all bg-white">
       <div className="flex flex-col items-start gap-1 py-1">
         <div className="flex items-center gap-2">
           {loan.status === 'active' && <div className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.4)]" />}
-          <span className="font-black uppercase text-slate-900 tracking-tight text-[11px]">
+          <span className="font-black uppercase text-slate-900 tracking-tight text-[13px]">
             {loan.studentName}
-            {loan.type === 'charger' && loan.studentId === 'ANON' && <span className="text-slate-400 ml-1 font-bold lowercase text-[9px]">(untracked)</span>}
+            {loan.type === 'charger' && loan.studentId === 'ANON' && <span className="text-slate-400 ml-1 font-black lowercase text-[10px]">(untracked)</span>}
           </span>
-          <span className="text-slate-400 font-bold lowercase tracking-tight text-[10px]">took {loan.type}</span>
+          <span className="text-slate-500 font-black lowercase tracking-tight text-[12px]">took {loan.type}</span>
         </div>
         <div className="flex items-center gap-4 pl-4 mt-1">
-          <span className="text-[10px] text-slate-700 font-black uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded shadow-sm border border-slate-200/50">TAG: {loan.assetTag}</span>
-          <span className="text-[10px] text-slate-500 font-black uppercase tracking-wide italic leading-none">{loan.reason}</span>
+          <span className="text-[12px] text-slate-900 font-black uppercase tracking-wider bg-white px-3 py-1 rounded shadow-sm border-2 border-maroon-900">TAG: {loan.assetTag}</span>
+          <span className="text-[12px] text-slate-700 font-black uppercase tracking-wide italic leading-none">{loan.reason}</span>
+          {(loan.classroom || loan.teacherName) && (
+            <span className="text-[10px] text-maroon-600 font-black uppercase tracking-tight">
+              {loan.classroom && `RM: ${loan.classroom}`}
+              {loan.classroom && loan.teacherName && " • "}
+              {loan.teacherName && `${loan.teacherName}`}
+            </span>
+          )}
         </div>
       </div>
       
@@ -256,13 +263,13 @@ function ActivityRow(props: any) {
               <span className="text-slate-400 uppercase font-black text-[8px] tracking-widest">Active</span>
               <button 
                 onClick={() => onReturn(loan.id)}
-                className="text-maroon-700 font-black uppercase text-[10px] tracking-widest hover:text-maroon-900 hover:scale-105 transition-all bg-maroon-50 px-2 py-1 rounded-md"
+                className="text-maroon-700 font-black uppercase text-[10px] tracking-widest hover:text-maroon-900 hover:scale-105 transition-all bg-maroon-50 px-2 py-1 rounded-md border border-maroon-900"
               >
                 Return
               </button>
             </div>
           ) : (
-            <span className="text-green-600 uppercase font-black text-[8px] tracking-widest bg-green-50 px-2 py-1 rounded-md">Returned</span>
+            <span className="text-green-600 uppercase font-black text-[8px] tracking-widest bg-green-50 px-2 py-1 rounded-md border border-green-600">Returned</span>
           )}
         </div>
       </div>
@@ -310,7 +317,7 @@ function StatusOverlay({ status, onDismiss }: { status: any, onDismiss: () => vo
       exit={{ opacity: 0, scale: 0.95 }}
       className={cn(
         "absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center",
-        "bg-white/98 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-100"
+        "bg-white/98 backdrop-blur-md rounded-2xl shadow-2xl border-4 border-maroon-900"
       )}
     >
       <div className={cn(
@@ -377,6 +384,9 @@ function MainApp() {
   const [chargerSearchQuery, setChargerSearchQuery] = useState('');
   const [chargerSearchResults, setChargerSearchResults] = useState<Student[]>([]);
   const [selectedQuickStudent, setSelectedQuickStudent] = useState<Student | null>(null);
+
+  const [classroom, setClassroom] = useState('');
+  const [teacherName, setTeacherName] = useState('');
 
   const [activeLoans, setActiveLoans] = useState<Loan[]>([]);
   const [recentLoans, setRecentLoans] = useState<Loan[]>([]);
@@ -679,7 +689,9 @@ function MainApp() {
         reason: 'Quick',
         location: selectedLocation,
         techId: user.uid,
-        techName: user.name
+        techName: user.name,
+        classroom: classroom.trim() || undefined,
+        teacherName: teacherName.trim() || undefined
       });
       setQuickAssetTag('');
       setQuickCbStatus({ message: 'Handout Logged!', type: 'success' });
@@ -938,6 +950,8 @@ function MainApp() {
         'Student Grade': l.studentGrade || 'N/A',
         'Asset Tag': l.assetTag,
         'Reason': l.reason,
+        'Classroom': l.classroom || 'N/A',
+        'Teacher': l.teacherName || 'N/A',
         'Location': l.location,
         'Technician': l.techName
       }));
@@ -1127,9 +1141,9 @@ function MainApp() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
       {/* Top Navigation Rail */}
-      <header className="bg-maroon-950 text-white px-8 py-5 flex justify-between items-center shadow-lg border-b border-maroon-900/50">
+      <header className="bg-maroon-950 text-white px-8 py-5 flex justify-between items-center shadow-lg border-b-4 border-maroon-950">
         <div className="flex items-center gap-5">
-          <div className="p-2.5 bg-white/5 rounded-xl border border-white/10 backdrop-blur-md">
+          <div className="p-2.5 bg-white/5 rounded-xl border-2 border-white/20 backdrop-blur-md">
             <Shield size={24} className="text-white" />
           </div>
           <div>
@@ -1139,7 +1153,7 @@ function MainApp() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1 bg-maroon-900 shadow-inner p-1.5 rounded-2xl border border-maroon-800">
+          <div className="flex items-center gap-1 bg-maroon-900 shadow-inner p-1.5 rounded-2xl border-2 border-maroon-800">
             {LOCATIONS.map(loc => (
               <button
                 key={loc}
@@ -1166,7 +1180,7 @@ function MainApp() {
              </div>
              <button 
                 onClick={logout}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all text-white/60 hover:text-white"
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border-2 border-white/20 hover:bg-white/10 hover:border-white/30 transition-all text-white/60 hover:text-white"
              >
                 <LogOut size={16} />
              </button>
@@ -1180,7 +1194,7 @@ function MainApp() {
         {/* Row 1: Visual Counts Dashboard */}
         <section className="relative">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
+            <div className="bg-white rounded-3xl shadow-sm border-2 border-maroon-900 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-maroon-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Monitor size={20} className="text-maroon-600" />
@@ -1201,7 +1215,7 @@ function MainApp() {
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
+            <div className="bg-white rounded-3xl shadow-sm border-2 border-maroon-900 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Zap size={20} className="text-amber-600" />
@@ -1222,7 +1236,7 @@ function MainApp() {
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
+            <div className="bg-white rounded-3xl shadow-sm border-2 border-maroon-900 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Zap size={20} className="text-blue-600" />
@@ -1243,7 +1257,7 @@ function MainApp() {
               </div>
             </div>
             
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
+            <div className="bg-white rounded-3xl shadow-sm border-2 border-maroon-900 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Home size={20} className="text-emerald-600" />
@@ -1264,7 +1278,7 @@ function MainApp() {
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
+            <div className="bg-white rounded-3xl shadow-sm border-2 border-maroon-900 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-rose-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                   <AlertTriangle size={20} className="text-rose-600" />
@@ -1285,7 +1299,7 @@ function MainApp() {
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
+            <div className="bg-white rounded-3xl shadow-sm border-2 border-maroon-900 p-6 flex flex-col justify-between group hover:shadow-md transition-all relative overflow-hidden h-36">
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                   <AlertCircle size={20} className="text-indigo-600" />
@@ -1312,9 +1326,9 @@ function MainApp() {
         <div className="grid grid-cols-12 gap-6">
           
           {/* Checkout Card */}
-          <section className="col-span-12 lg:col-span-6 xl:col-span-6 bg-white rounded-2xl shadow-md border border-slate-200 flex flex-col overflow-hidden relative">
+          <section className="col-span-12 lg:col-span-6 xl:col-span-6 bg-white rounded-2xl shadow-md border-2 border-maroon-900 flex flex-col overflow-hidden relative">
             <StatusOverlay status={checkoutStatus} onDismiss={() => setCheckoutStatus({ message: '', type: null })} />
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+            <div className="p-6 border-b-2 border-maroon-900 flex justify-between items-center">
               <h3 className="font-bold flex items-center gap-2 text-slate-800 text-xs uppercase tracking-widest">
                 <Shield size={16} className="text-maroon-600" /> CHROMEBOOK CHECKOUT
               </h3>
@@ -1344,10 +1358,10 @@ function MainApp() {
                       onChange={(e) => handleStudentSearch(e.target.value)}
                       placeholder="Search by ID or Name..."
                       className={cn(
-                        "w-full p-3 pl-11 pr-11 bg-slate-50 border rounded-lg text-sm outline-none transition-all placeholder:text-slate-300 font-bold",
+                        "w-full p-3 pl-11 pr-11 bg-slate-50 border-2 rounded-lg text-sm outline-none transition-all placeholder:text-slate-300 font-bold",
                         selectedStudent 
                           ? "border-green-500 bg-green-50/20 text-green-700 focus:ring-0" 
-                          : "border-slate-200 focus:ring-1 focus:ring-maroon-600"
+                          : "border-maroon-900 focus:ring-1 focus:ring-maroon-600"
                       )}
                     />
                     {selectedStudent && (
@@ -1361,7 +1375,7 @@ function MainApp() {
                       {searchResults.length > 0 && !selectedStudent && (
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                          className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 p-2 space-y-1 max-h-60 overflow-y-auto"
+                          className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-2xl border-2 border-maroon-900 z-50 p-2 space-y-1 max-h-60 overflow-y-auto"
                         >
                           {searchResults.map(s => (
                             <button 
@@ -1392,22 +1406,22 @@ function MainApp() {
                     value={assetTag}
                     onChange={(e) => setAssetTag(e.target.value)}
                     placeholder="LTX-2026-XXXXX"
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-maroon-600 outline-none transition-all font-mono"
+                    className="w-full p-3 bg-slate-50 border-2 border-maroon-900 rounded-lg text-sm focus:ring-1 focus:ring-maroon-600 outline-none transition-all font-mono"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Reason for Loaner</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['Lost Chromebook', 'Forgotten at Home', 'Broken', 'Other'] as LoanReason[]).map(r => (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                    {(['Lost Chromebook', 'Forgotten at Home', 'Broken', 'CB Dead / Needs Charging', 'Other'] as LoanReason[]).map(r => (
                       <button 
                         key={r}
                         onClick={() => setReason(r)}
                         className={cn(
-                          "p-4 rounded-lg border text-[9px] font-black uppercase transition-all tracking-tight leading-normal h-16 flex items-center justify-center text-center",
+                          "p-4 rounded-lg border-2 text-[9px] font-black uppercase transition-all tracking-tight leading-normal h-16 flex items-center justify-center text-center",
                           reason === r 
-                            ? "bg-maroon-900 border-maroon-900 text-white shadow-inner" 
-                            : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white"
+                            ? "bg-maroon-900 border-maroon-950 text-white shadow-inner" 
+                            : "bg-slate-50 border-maroon-900 text-slate-600 hover:bg-white"
                         )}
                       >
                       {r === 'Lost Chromebook' ? 'LOST Device' : r}
@@ -1420,7 +1434,7 @@ function MainApp() {
               <button 
                 onClick={handleCheckout}
                 disabled={!selectedStudent || !assetTag || isCheckingOut}
-                className="w-full bg-[#a38087] text-white py-6 rounded-lg font-black uppercase tracking-widest text-sm shadow-md hover:bg-maroon-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+                className="w-full bg-[#a38087] text-white py-6 rounded-lg font-black uppercase tracking-widest text-sm shadow-md hover:bg-maroon-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-4 border-2 border-maroon-900"
               >
                 {isCheckingOut ? 'Processing...' : 'Confirm Checkout'}
               </button>
@@ -1428,7 +1442,7 @@ function MainApp() {
           </section>
 
           {/* Student Detail Card */}
-          <section className="col-span-12 lg:col-span-3 xl:col-span-3 bg-white rounded-2xl shadow-md border border-slate-200 p-8 flex flex-col relative">
+          <section className="col-span-12 lg:col-span-3 xl:col-span-3 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-8 flex flex-col relative">
             <h3 className="font-bold flex items-center gap-2 text-slate-400 text-[10px] uppercase tracking-widest mb-10">
               <UserIcon size={14} className="text-slate-400" /> STUDENT DETAIL
             </h3>
@@ -1455,6 +1469,11 @@ function MainApp() {
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">GRADE</label>
                     <span className="text-lg font-black text-slate-900 block tracking-tight">{selectedStudent.grade || 'N/A'}</span>
                    </div>
+                </div>
+
+                <div className="space-y-3 pt-4">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block underline underline-offset-4 decoration-maroon-600/20">CAMPUS NAME</label>
+                  <h4 className="text-lg font-black text-maroon-900 uppercase truncate tracking-tight">{selectedStudent.location}</h4>
                 </div>
 
                 {selectedStudent.email && (
@@ -1485,7 +1504,7 @@ function MainApp() {
           </section>
 
           {/* Quick CB Loan Card */}
-          <section className="col-span-12 lg:col-span-3 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-hidden">
+          <section className="col-span-12 lg:col-span-3 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 flex flex-col relative overflow-hidden">
             <StatusOverlay status={quickCbStatus} onDismiss={() => setQuickCbStatus({ message: '', type: null })} />
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
@@ -1496,7 +1515,7 @@ function MainApp() {
                 {user?.role === 'admin' && (
                   <button 
                     onClick={handleResetQuickCB}
-                    className="mt-1 p-1.5 rounded-lg hover:bg-maroon-50 text-slate-400 hover:text-maroon-600 transition-colors flex items-center gap-1 text-[8px] font-black uppercase tracking-widest"
+                    className="mt-1 p-1.5 rounded-lg hover:bg-maroon-50 text-slate-400 hover:text-maroon-600 border border-maroon-900 transition-colors flex items-center gap-1 text-[8px] font-black uppercase tracking-widest"
                   >
                     <RotateCcw size={10} /> CB RESET
                   </button>
@@ -1512,14 +1531,45 @@ function MainApp() {
                   value={quickAssetTag}
                   onChange={(e) => setQuickAssetTag(e.target.value)}
                   placeholder="Ex. 1, 2, or scan tag"
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-lg text-center font-bold text-sm focus:ring-1 focus:ring-maroon-600 outline-none transition-all placeholder:text-slate-300"
+                  className="w-full p-4 bg-slate-50 border-2 border-maroon-900 rounded-lg text-center font-bold text-sm focus:ring-1 focus:ring-maroon-600 outline-none transition-all placeholder:text-slate-300"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 w-full relative">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block text-left">Classroom #</label>
+                  <input 
+                    type="text"
+                    value={classroom}
+                    onChange={(e) => setClassroom(e.target.value)}
+                    placeholder="Optional"
+                    className="w-full p-2 bg-slate-50 border-2 border-maroon-900 rounded-lg text-xs font-bold focus:ring-1 focus:ring-maroon-600 outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block text-left">Teacher Name</label>
+                  <input 
+                    type="text"
+                    value={teacherName}
+                    onChange={(e) => setTeacherName(e.target.value)}
+                    placeholder="Optional"
+                    className="w-full p-2 bg-slate-50 border-2 border-maroon-900 rounded-lg text-xs font-bold focus:ring-1 focus:ring-maroon-600 outline-none transition-all"
+                  />
+                </div>
+                {(classroom || teacherName) && (
+                  <button 
+                    onClick={() => { setClassroom(''); setTeacherName(''); }}
+                    className="absolute -bottom-4 right-0 text-[7px] font-black text-maroon-600/50 hover:text-maroon-600 uppercase tracking-tighter transition-colors"
+                  >
+                    Clear Info
+                  </button>
+                )}
               </div>
 
               <button 
                 onClick={handleQuickLoan}
                 disabled={!quickAssetTag || isCheckingOut}
-                className="w-full bg-[#a38087] text-white py-4 rounded-lg font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-maroon-700 transition-all active:scale-95 disabled:opacity-50"
+                className="w-full bg-[#a38087] text-white py-4 rounded-lg font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-maroon-700 transition-all active:scale-95 disabled:opacity-50 border-2 border-maroon-900"
               >
                 Hand Out CB
               </button>
@@ -1528,7 +1578,7 @@ function MainApp() {
           </section>
 
           {/* New Loaner Charger Section */}
-          <section className="col-span-12 lg:col-span-3 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-hidden">
+          <section className="col-span-12 lg:col-span-3 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 flex flex-col relative overflow-hidden">
             <StatusOverlay status={handoutStatus} onDismiss={() => setHandoutStatus({ message: '', type: null })} />
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
@@ -1540,7 +1590,7 @@ function MainApp() {
                   <HoldToResetButton 
                     onReset={handleResetQuickAnonCharger}
                     label="LOANER"
-                    className="mt-1 text-blue-400 hover:text-blue-600 border-blue-50"
+                    className="mt-1 text-blue-400 hover:text-blue-600 border border-maroon-900"
                   />
                 )}
               </div>
@@ -1552,14 +1602,14 @@ function MainApp() {
                   <div className="flex items-center gap-4">
                     <button 
                       onClick={() => setAnonChargerQuantity(q => Math.max(0, q - 1))}
-                      className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all font-bold"
+                      className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all font-bold border border-maroon-900"
                     >
                       -
                     </button>
                     <span className="text-xl font-black text-slate-800 w-6 text-center">{anonChargerQuantity}</span>
                     <button 
                       onClick={() => setAnonChargerQuantity(q => q + 1)}
-                      className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all font-bold"
+                      className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all font-bold border border-maroon-900"
                     >
                       +
                     </button>
@@ -1569,7 +1619,7 @@ function MainApp() {
                 <button 
                   onClick={() => handleChargerLoan(true)}
                   disabled={anonChargerQuantity <= 0}
-                  className="w-full bg-blue-600 text-white py-4 rounded-lg font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-blue-700 transition-all active:scale-95 mt-auto disabled:opacity-50 disabled:grayscale"
+                  className="w-full bg-blue-600 text-white py-4 rounded-lg font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-blue-700 transition-all active:scale-95 mt-auto disabled:opacity-50 disabled:grayscale border-2 border-maroon-900"
                 >
                   Log {anonChargerQuantity}x Loaner Handout
                 </button>
@@ -1593,7 +1643,7 @@ function MainApp() {
         <div className="grid grid-cols-12 gap-6">
           {/* Database Update Card - Admin Only */}
           {user?.role === 'admin' && (
-            <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border border-slate-200 p-6 relative overflow-hidden">
+            <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 relative overflow-hidden">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
                   <Upload size={16} className="text-maroon-600" /> UPDATE STUDENT DATABASE
@@ -1606,7 +1656,7 @@ function MainApp() {
                 </button>
               </div>
 
-              <label className="w-full h-40 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-slate-50 transition-all group relative overflow-hidden">
+              <label className="w-full h-40 border-4 border-dashed border-maroon-900 rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-maroon-50 transition-all group relative overflow-hidden">
                 <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} />
                 <div className="p-3 bg-slate-100 rounded-xl group-hover:scale-110 transition-transform">
                   <Upload size={24} className="text-slate-400 group-hover:text-maroon-600 transition-colors" />
@@ -1653,8 +1703,8 @@ function MainApp() {
 
               {/* Session Control Center - ADMIN ONLY */}
               {user?.role === 'admin' && (
-                <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4">
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
+                <div className="mt-8 pt-6 border-t-2 border-maroon-900 flex flex-col gap-4">
+                  <div className="p-4 bg-slate-50 border-2 border-maroon-900 rounded-xl space-y-3 shadow-sm">
                     <div className="flex items-center gap-2 text-slate-700">
                       <Clock size={16} className="text-maroon-600" />
                       <span className="text-[10px] font-black uppercase tracking-wider">Session Management</span>
@@ -1666,19 +1716,19 @@ function MainApp() {
                       <HoldToResetButton 
                         onReset={() => handleResetActivity(setDbStatus)}
                         label="Campus Reset"
-                        className="py-3 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-sm w-full"
+                        className="py-3 bg-white border-2 border-maroon-900 text-slate-700 rounded-lg shadow-sm w-full"
                         icon={<RotateCcw size={10} />}
                       />
                       <HoldToResetButton 
                         onReset={() => handleSystemWipe(setDbStatus)}
                         label="Global Reset"
-                        className="py-3 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-sm w-full"
+                        className="py-3 bg-white border-2 border-maroon-900 text-slate-700 rounded-lg shadow-sm w-full"
                         icon={<History size={10} />}
                       />
                     </div>
                   </div>
 
-                  <div className="p-4 bg-red-50 border border-red-100 rounded-xl space-y-3">
+                  <div className="p-4 bg-red-50 border-2 border-maroon-900 rounded-xl space-y-3 shadow-sm">
                     <div className="flex items-center gap-2 text-red-700">
                       <AlertTriangle size={16} />
                       <span className="text-[10px] font-black uppercase tracking-wider">Danger Zone</span>
@@ -1689,7 +1739,7 @@ function MainApp() {
                     <HoldToResetButton 
                       onReset={handleFactoryReset}
                       label="Factory Reset (Total Wipe)"
-                      className="w-full py-3 bg-red-600 text-white border-red-700 hover:bg-red-700 rounded-lg shadow-md"
+                      className="w-full py-3 bg-red-600 text-white border-2 border-maroon-950 hover:bg-red-700 rounded-lg shadow-md"
                       icon={<Trash2 size={12} />}
                     />
                   </div>
@@ -1699,7 +1749,7 @@ function MainApp() {
           )}
 
           {/* Quick Charger Loan Card */}
-          <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-hidden">
+          <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 flex flex-col relative overflow-hidden">
             <StatusOverlay status={quickChargerStatus} onDismiss={() => setQuickChargerStatus({ message: '', type: null })} />
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
@@ -1711,7 +1761,7 @@ function MainApp() {
                   {user?.role === 'admin' && (
                     <button 
                       onClick={handleResetQuickCharger}
-                      className="mt-1 p-1.5 rounded-lg font-black text-slate-400 hover:text-maroon-600 uppercase tracking-widest text-[8px] flex items-center gap-1 transition-colors"
+                      className="mt-1 p-1.5 rounded-lg font-black text-slate-400 hover:text-maroon-600 border border-maroon-900 uppercase tracking-widest text-[8px] flex items-center gap-1 transition-colors"
                     >
                       <RotateCcw size={10} /> RESET
                     </button>
@@ -1728,13 +1778,13 @@ function MainApp() {
                 </label>
                 
                 {selectedQuickStudent ? (
-                  <div className="flex flex-col p-4 bg-maroon-50 border border-maroon-100 rounded-xl relative">
+                  <div className="flex flex-col p-4 bg-maroon-50 border-2 border-maroon-900 rounded-xl relative">
                     <div className="text-left space-y-1">
                       <div className="flex justify-between items-start">
                         <p className="text-[11px] font-black text-maroon-900 uppercase">{selectedQuickStudent.name}</p>
                         <button 
                           onClick={() => setSelectedQuickStudent(null)}
-                          className="p-1 hover:bg-maroon-100 rounded-lg text-maroon-600 transition-colors"
+                          className="p-1 hover:bg-maroon-100 rounded-lg text-maroon-600 transition-colors border border-maroon-900"
                         >
                           <X size={14} strokeWidth={3} />
                         </button>
@@ -1767,11 +1817,11 @@ function MainApp() {
                           handleChargerLoan(false, chargerSearchQuery);
                         }
                       }}
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-sm focus:ring-1 focus:ring-maroon-600 outline-none transition-all placeholder:text-slate-300"
+                      className="w-full p-4 bg-slate-50 border-2 border-maroon-900 rounded-xl text-center font-bold text-sm focus:ring-1 focus:ring-maroon-600 outline-none transition-all placeholder:text-slate-300"
                     />
                     
                     {chargerSearchResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 max-h-56 overflow-y-auto overflow-x-hidden p-1 scrollbar-hide">
+                      <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white rounded-xl shadow-xl border-2 border-maroon-900 max-h-56 overflow-y-auto overflow-x-hidden p-1 scrollbar-hide">
                         {chargerSearchResults.map(s => (
                           <button
                             key={s.id}
@@ -1815,7 +1865,7 @@ function MainApp() {
 
           {/* Admin: Tech Management Card */}
           {user?.role === 'admin' && (
-            <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex flex-col relative overflow-hidden">
+            <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 flex flex-col relative overflow-hidden">
               <StatusOverlay status={techStatus} onDismiss={() => setTechStatus({ message: '', type: null })} />
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
@@ -1830,12 +1880,12 @@ function MainApp() {
                     value={newTechName} 
                     onChange={(e) => setNewTechName(e.target.value)} 
                     placeholder="Full Name" 
-                    className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                    className="flex-1 p-2.5 bg-slate-50 border-2 border-maroon-900 rounded-lg text-xs"
                   />
                   <select 
                     value={newTechLocation} 
                     onChange={(e) => setNewTechLocation(e.target.value as LocationKey)} 
-                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold"
+                    className="p-2.5 bg-slate-50 border-2 border-maroon-900 rounded-lg text-xs font-bold"
                   >
                     {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
                   </select>
@@ -1858,20 +1908,20 @@ function MainApp() {
                    <p className="text-[10px] text-slate-300 italic text-center py-4 uppercase font-bold">No registered technicians</p>
                  ) : (
                    techs.map(t => (
-                     <div key={t.uid} className="flex flex-col gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100 transition-all group overflow-hidden relative">
+                     <div key={t.uid} className="flex flex-col gap-2 p-3 bg-slate-50 rounded-lg border-2 border-maroon-900 transition-all group overflow-hidden relative">
                         {editingTechId === t.uid ? (
                           <div className="space-y-2">
                             <input 
                               type="text" 
                               value={editingTechName}
                               onChange={(e) => setEditingTechName(e.target.value)}
-                              className="w-full p-2 bg-white border border-slate-200 rounded text-[10px] font-bold"
+                              className="w-full p-2 bg-white border-2 border-maroon-900 rounded text-[10px] font-bold"
                             />
                             <div className="flex gap-2">
                               <select 
                                 value={editingTechLocation || ''}
                                 onChange={(e) => setEditingTechLocation(e.target.value as LocationKey)}
-                                className="flex-1 p-2 bg-white border border-slate-200 rounded text-[10px] font-bold"
+                                className="flex-1 p-2 bg-white border-2 border-maroon-900 rounded text-[10px] font-bold"
                               >
                                 {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
                               </select>
@@ -1940,8 +1990,8 @@ function MainApp() {
         </div>
 
         {/* Row 3: Overview Card */}
-        <section className="bg-white rounded-2xl shadow-md border border-slate-200 p-8">
-          <div className="flex justify-between items-center mb-10">
+        <section className="bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-8">
+          <div className="flex justify-between items-center mb-10 border-b-2 border-maroon-900 pb-4">
             <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
               <Plus size={16} className="text-maroon-600 rotate-45" /> LIVE LOANER OVERVIEW
             </h3>
@@ -1951,19 +2001,19 @@ function MainApp() {
             {/* Stats Column */}
             <div className="col-span-12 lg:col-span-5 space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl flex justify-between items-center">
+                <div className="bg-white border-2 border-maroon-900 p-6 rounded-2xl flex justify-between items-center">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Chromebooks Out</span>
                   <span className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-black">{stats.chromebooksOut}</span>
                 </div>
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl flex justify-between items-center">
+                <div className="bg-white border-2 border-maroon-900 p-6 rounded-2xl flex justify-between items-center">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Forgotten Reason</span>
                   <span className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-black">{stats.forgottenToday}</span>
                 </div>
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl flex justify-between items-center">
+                <div className="bg-white border-2 border-maroon-900 p-6 rounded-2xl flex justify-between items-center">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Chargers Loaned</span>
                   <span className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-xs font-black">{stats.chargersOut}</span>
                 </div>
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl flex justify-between items-center">
+                <div className="bg-white border-2 border-maroon-900 p-6 rounded-2xl flex justify-between items-center">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Broken Reason</span>
                   <span className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-xs font-black">{stats.brokenToday}</span>
                 </div>
@@ -1973,8 +2023,8 @@ function MainApp() {
             {/* Activity & Report Column */}
             <div className="col-span-12 lg:col-span-7 flex flex-col gap-4 relative overflow-hidden">
               <StatusOverlay status={dbStatus} onDismiss={() => setDbStatus({ message: '', type: null })} />
-              <div className="flex-1 bg-white border border-slate-200 rounded-xl flex flex-col min-h-[300px] overflow-hidden">
-                <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+              <div className="flex-1 bg-white border-2 border-maroon-900 rounded-xl flex flex-col min-h-[300px] overflow-hidden">
+                <div className="p-4 border-b-2 border-maroon-900 bg-slate-50/50 flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">ACTIVITY FEED</span>
                     {user?.role === 'admin' && (
@@ -2053,8 +2103,8 @@ function MainApp() {
               {/* Report Controls */}
               <div className="grid grid-cols-12 gap-4">
                 <div className="col-span-8 flex gap-4">
-                   <div className="flex-1 bg-white border border-slate-200 rounded-lg p-3 relative">
-                      <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black text-slate-400 uppercase tracking-widest">FROM</span>
+                   <div className="flex-1 bg-white border-2 border-maroon-900 rounded-lg p-3 relative">
+                      <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black text-maroon-900 uppercase tracking-widest">FROM</span>
                       <input 
                         type="date" 
                         value={reportStart}
@@ -2062,8 +2112,8 @@ function MainApp() {
                         className="w-full bg-transparent text-[10px] font-bold outline-none uppercase"
                       />
                    </div>
-                   <div className="flex-1 bg-white border border-slate-200 rounded-lg p-3 relative">
-                      <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black text-slate-400 uppercase tracking-widest">TO</span>
+                   <div className="flex-1 bg-white border-2 border-maroon-900 rounded-lg p-3 relative">
+                      <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black text-maroon-900 uppercase tracking-widest">TO</span>
                       <input 
                         type="date" 
                         value={reportEnd}
@@ -2075,7 +2125,7 @@ function MainApp() {
                 <button 
                   onClick={handleGenerateReport}
                   disabled={isGeneratingReport}
-                  className="col-span-4 bg-white border border-maroon-600 text-maroon-600 rounded-lg font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-maroon-50 transition-all border-opacity-30 disabled:opacity-50"
+                  className="col-span-4 bg-maroon-600 text-white rounded-lg font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-maroon-700 transition-all border-2 border-maroon-950 disabled:opacity-50 shadow-md"
                 >
                   <History size={14} className={isGeneratingReport ? 'animate-spin' : ''} /> 
                   {isGeneratingReport ? 'Processing...' : 'Generate Report'}
