@@ -1736,8 +1736,8 @@ function MainApp() {
 
         {/* Row 2: Database Update + Tech Management */}
         <div className="grid grid-cols-12 gap-6">
-          {/* Database Update Card - Admin Only */}
-          {user?.role === 'admin' && (
+          {/* Database Update Card - Admin Only (Full Admin Only) */}
+          {user?.role === 'admin' && user?.subRole === 'full' && (
             <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 relative overflow-hidden">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
@@ -2122,7 +2122,7 @@ function MainApp() {
                 <div className="p-4 border-b-2 border-maroon-900 bg-slate-50/50 flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">ACTIVITY FEED</span>
-                    {user?.role === 'admin' && (
+                    {user?.role === 'admin' && user?.subRole === 'full' && (
                       <HoldToResetButton 
                         onReset={handleResetActivity}
                         label="HOLD TO CLEAR"

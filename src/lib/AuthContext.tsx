@@ -68,15 +68,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loginWithPin = async (pin: string) => {
-    if (pin === '7324') {
+    if (pin === '7324' || pin === '1974') {
       try {
         await signInAnonymously(auth).catch(e => {
           console.warn("Anonymous Auth disabled. Continuing locally.", e);
         });
+        const isAdmin = pin === '1974';
         const adminUser: User = {
-          uid: 'admin-pin-user',
-          name: 'System Admin',
+          uid: isAdmin ? 'full-admin-user' : 'assistant-admin-user',
+          name: isAdmin ? 'Full Admin' : 'Assistant Admin',
           role: 'admin',
+          subRole: isAdmin ? 'full' : 'assistant',
           location: 'K8WES', // Default location
           createdAt: Date.now()
         };

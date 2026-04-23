@@ -4,6 +4,7 @@ export interface User {
   uid: string;
   name: string;
   role: UserRole;
+  subRole?: 'assistant' | 'full';
   location?: string;
   createdAt?: number;
 }
