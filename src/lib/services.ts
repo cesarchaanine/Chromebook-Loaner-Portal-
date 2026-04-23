@@ -99,6 +99,16 @@ export const loanService = {
       chunk.forEach(d => batch.delete(d.ref));
       await batch.commit();
     }
+  },
+
+  async getStudentChromebookLoanCount(studentId: string) {
+    const q = query(
+      collection(db, 'loans'),
+      where('studentId', '==', studentId),
+      where('type', '==', 'chromebook')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.size;
   }
 };
 

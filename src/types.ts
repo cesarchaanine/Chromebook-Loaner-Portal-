@@ -38,6 +38,7 @@ export interface Loan {
   updatedAt?: number; // timestamp for sorting activity
   classroom?: string;
   teacherName?: string;
+  loanFrequency?: number;
 }
 
 export const LOCATIONS = [

@@ -41,6 +41,12 @@ import Papa from 'papaparse';
 
 // --- Components ---
 
+const getOrdinal = (n: number) => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
 interface HoldToResetButtonProps {
   onReset: () => void;
   label: string;
@@ -240,6 +246,11 @@ function ActivityRow(props: any) {
         </div>
         <div className="flex items-center gap-4 pl-4 mt-1">
           <span className="text-[12px] text-slate-900 font-black uppercase tracking-wider bg-white px-3 py-1 rounded shadow-sm border-2 border-maroon-900">TAG: {loan.assetTag}</span>
+          {loan.type === 'chromebook' && loan.loanFrequency && (
+            <span className="text-[10px] text-maroon-700 font-black uppercase tracking-widest bg-maroon-50 px-2 py-1 rounded-md border border-maroon-200">
+              {getOrdinal(loan.loanFrequency)} Loan
+            </span>
+          )}
           <span className="text-[12px] text-slate-700 font-black uppercase tracking-wide italic leading-none">{loan.reason}</span>
           {(loan.classroom || loan.teacherName) && (
             <span className="text-[10px] text-maroon-600 font-black uppercase tracking-tight">
@@ -387,6 +398,7 @@ function MainApp() {
 
   const [classroom, setClassroom] = useState('');
   const [teacherName, setTeacherName] = useState('');
+  const [studentLoanCount, setStudentLoanCount] = useState<number | null>(null);
 
   const [activeLoans, setActiveLoans] = useState<Loan[]>([]);
   const [recentLoans, setRecentLoans] = useState<Loan[]>([]);
@@ -563,6 +575,23 @@ function MainApp() {
     }
   }, [selectedLocation, user]);
 
+  useEffect(() => {
+    const fetchFrequency = async () => {
+      if (selectedStudent) {
+        try {
+          const count = await loanService.getStudentChromebookLoanCount(selectedStudent.id);
+          setStudentLoanCount(count);
+        } catch (err) {
+          console.error("Error fetching student loan count:", err);
+          setStudentLoanCount(null);
+        }
+      } else {
+        setStudentLoanCount(null);
+      }
+    };
+    fetchFrequency();
+  }, [selectedStudent]);
+
   const loadTechs = async () => {
     try {
       const list = await userService.getTechs();
@@ -663,7 +692,8 @@ function MainApp() {
         reason,
         location: selectedLocation,
         techId: user.uid,
-        techName: user.name
+        techName: user.name,
+        loanFrequency: (studentLoanCount || 0) + 1
       });
       setSelectedStudent(null);
       setAssetTag('');
@@ -1458,6 +1488,20 @@ function MainApp() {
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block underline underline-offset-4 decoration-maroon-600/20">LAST NAME</label>
                     <h4 className="text-xl font-black text-maroon-900 uppercase truncate tracking-tight">{lastName}</h4>
                   </div>
+                </div>
+
+                <div className="bg-maroon-50 border-2 border-maroon-900 rounded-2xl p-6 flex items-center justify-between group overflow-hidden relative">
+                   <div className="relative z-10">
+                      <span className="text-[10px] font-black text-maroon-600 uppercase tracking-widest block mb-1">Loan History</span>
+                      <p className="text-2xl font-black text-maroon-950 uppercase">
+                        {studentLoanCount !== null ? (
+                          <>Borrowed <span className="text-maroon-600">{studentLoanCount}</span> Times</>
+                        ) : (
+                          'Loading History...'
+                        )}
+                      </p>
+                   </div>
+                   <History className="text-maroon-200 absolute -right-2 -bottom-2 w-20 h-20 rotate-12 group-hover:rotate-0 transition-transform duration-500" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-8 pt-4">
