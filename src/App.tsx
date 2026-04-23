@@ -743,7 +743,8 @@ function MainApp() {
     setRecentLoans([]);
     
     try {
-      await loanService.clearLoans(selectedLocation);
+      // CLEARING THE FEED NO LONGER DELETES DATABASE RECORDS
+      // We only update the local session timestamps to filter them out of view
       
       const now = Date.now();
       const nowStr = now.toString();
@@ -766,10 +767,10 @@ function MainApp() {
       setResetQuickChargerTs(now);
       setResetQuickAnonChargerTs(now);
       
-      await loadData(selectedLocation);
-      targetStatus({ message: 'SUCCESS: Location activity reset.', type: 'success' });
+      await loadData(selectedLocation, true);
+      targetStatus({ message: 'Campus activity view cleared!', type: 'success' });
     } catch (err: any) {
-      console.error("Clear activity error:", err);
+      console.error("Clear activity view error:", err);
       targetStatus({ message: `ERROR: ${err.message}`, type: 'error' });
       loadData(selectedLocation);
     }
@@ -783,7 +784,8 @@ function MainApp() {
     setRecentLoans([]);
     
     try {
-      await loanService.wipeAllLoans();
+      // GLOBAL RESET NO LONGER DELETES DATABASE RECORDS
+      // We only update the session timestamps for all campuses
       
       const now = Date.now();
       const nowStr = now.toString();
@@ -808,11 +810,11 @@ function MainApp() {
       setResetQuickChargerTs(now);
       setResetQuickAnonChargerTs(now);
       
-      await loadData(selectedLocation);
-      targetStatus({ message: 'SUCCESS: All campus activity purged.', type: 'success' });
+      await loadData(selectedLocation, true);
+      targetStatus({ message: 'Global activity view cleared!', type: 'success' });
     } catch (err: any) {
-      console.error("System wipe error:", err);
-      targetStatus({ message: `WIPE FAILED: ${err.message}`, type: 'error' });
+      console.error("Global view clear error:", err);
+      targetStatus({ message: `ERROR: ${err.message}`, type: 'error' });
       loadData(selectedLocation);
     }
   }, [selectedLocation, loadData]);
@@ -820,8 +822,9 @@ function MainApp() {
   const handleFactoryReset = useCallback(async () => {
     setDbStatus({ message: 'FACTORY RESET IN PROGRESS...', type: 'loading' });
     try {
-      // Clear loans
-      await loanService.wipeAllLoans();
+      // LOANS ARE NO LONGER DELETED TO PRESERVE DATA FOR REPORTS
+      // We only clear the local view for everything
+      
       // Clear students
       await studentService.wipeAllStudents();
       
@@ -836,7 +839,18 @@ function MainApp() {
       });
       await batch.commit();
 
-      localStorage.clear();
+      const now = Date.now().toString();
+      LOCATIONS.forEach(loc => {
+        localStorage.setItem(`aoh_portal_cb_reset_ts_${loc}`, now);
+        localStorage.setItem(`aoh_portal_chg_reset_ts_${loc}`, now);
+        localStorage.setItem(`aoh_portal_quick_cb_reset_ts_${loc}`, now);
+        localStorage.setItem(`aoh_portal_forgotten_reset_ts_${loc}`, now);
+        localStorage.setItem(`aoh_portal_broken_reset_ts_${loc}`, now);
+        localStorage.setItem(`aoh_portal_lost_reset_ts_${loc}`, now);
+        localStorage.setItem(`aoh_portal_quick_chg_reset_ts_${loc}`, now);
+        localStorage.setItem(`aoh_portal_quick_anon_chg_reset_ts_${loc}`, now);
+      });
+      
       window.location.reload();
     } catch (err: any) {
       console.error("Factory reset error:", err);
@@ -983,7 +997,8 @@ function MainApp() {
         'Classroom': l.classroom || 'N/A',
         'Teacher': l.teacherName || 'N/A',
         'Location': l.location,
-        'Technician': l.techName
+        'Technician': l.techName,
+        'Loan Frequency': l.loanFrequency ? `${getOrdinal(l.loanFrequency)} time` : 'N/A'
       }));
 
       const csv = Papa.unparse(csvData);
@@ -1148,8 +1163,44 @@ function MainApp() {
       older: [] as Loan[]
     };
 
-    // Filter to only show ACTIVE loans in the feed
-    const activeRecent = recentLoans.filter(l => l.status === 'active');
+    const getTs = (val: any) => {
+      if (typeof val === 'number') return val;
+      if (val && typeof val.toMillis === 'function') return val.toMillis();
+      if (val && typeof val.seconds === 'number') return val.seconds * 1000;
+      return 0;
+    };
+
+    // Session starts
+    const cbStart = Math.max(todayTs, resetCBOutTs);
+    const chgStart = Math.max(todayTs, resetChargerTs);
+    const forgottenStart = Math.max(todayTs, resetForgottenTs);
+    const brokenStart = Math.max(todayTs, resetBrokenTs);
+    const lostStart = Math.max(todayTs, resetLostTs);
+    const quickChgStart = Math.max(todayTs, resetQuickChargerTs);
+    const anonChgStart = Math.max(todayTs, resetQuickAnonChargerTs);
+    const quickCbStart = Math.max(todayTs, resetQuickCBTs);
+
+    // Filter to only show ACTIVE loans in the feed AND respect session resets
+    const activeRecent = recentLoans.filter(l => {
+      if (l.status !== 'active') return false;
+      
+      const ts = getTs(l.updatedAt || l.checkoutAt);
+      let startTs = todayTs;
+
+      if (l.type === 'chromebook') {
+        if (l.reason === 'Quick') startTs = quickCbStart;
+        else if (l.reason === 'Forgotten at Home') startTs = forgottenStart;
+        else if (l.reason === 'Broken') startTs = brokenStart;
+        else if (l.reason === 'Lost Chromebook') startTs = lostStart;
+        else startTs = cbStart;
+      } else if (l.type === 'charger') {
+        if (l.reason === 'Quick-Student') startTs = quickChgStart;
+        else if (l.reason === 'Quick-Anon') startTs = anonChgStart;
+        else startTs = chgStart;
+      }
+
+      return ts >= startTs;
+    });
 
     activeRecent.forEach(loan => {
       const loanDate = new Date(loan.updatedAt || loan.checkoutAt);
@@ -1166,7 +1217,7 @@ function MainApp() {
     });
 
     return groups;
-  }, [recentLoans]);
+  }, [recentLoans, resetCBOutTs, resetChargerTs, resetQuickCBTs, resetForgottenTs, resetBrokenTs, resetLostTs, resetQuickChargerTs, resetQuickAnonChargerTs]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
@@ -1778,7 +1829,7 @@ function MainApp() {
                       <span className="text-[10px] font-black uppercase tracking-wider">Danger Zone</span>
                     </div>
                     <p className="text-[9px] text-red-600 font-bold leading-relaxed">
-                      A total factory wipe deletes students, technicians, and all activity history. This cannot be undone.
+                      A factory wipe deletes students and technicians. Activity history is preserved in the database for reporting but cleared from all views.
                     </p>
                     <HoldToResetButton 
                       onReset={handleFactoryReset}
