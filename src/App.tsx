@@ -656,7 +656,7 @@ function MainApp() {
     try {
       await userService.updateTech(editingTechId, {
         name: editingTechName.trim(),
-        location: editingTechLocation || undefined
+        location: editingTechLocation || null
       });
       setEditingTechId(null);
       await loadTechs();
@@ -686,8 +686,8 @@ function MainApp() {
         type: 'chromebook',
         studentId: selectedStudent.id,
         studentName: selectedStudent.name,
-        studentEmail: selectedStudent.email || undefined,
-        studentGrade: selectedStudent.grade || undefined,
+        studentEmail: selectedStudent.email || null,
+        studentGrade: selectedStudent.grade || null,
         assetTag,
         reason,
         location: selectedLocation,
@@ -720,8 +720,8 @@ function MainApp() {
         location: selectedLocation,
         techId: user.uid,
         techName: user.name,
-        classroom: classroom.trim() || undefined,
-        teacherName: teacherName.trim() || undefined
+        classroom: classroom.trim() || null,
+        teacherName: teacherName.trim() || null
       });
       setQuickAssetTag('');
       setQuickCbStatus({ message: 'Handout Logged!', type: 'success' });
