@@ -10,7 +10,7 @@ export interface User {
 }
 
 export type LoanType = 'chromebook' | 'charger';
-export type LoanReason = 'Lost Chromebook' | 'Forgotten at Home' | 'Broken' | 'Other' | 'Quick' | 'CB Dead / Needs Charging';
+export type LoanReason = 'Loaner' | 'Lost Chromebook' | 'Forgotten at Home' | 'Broken' | 'Other' | 'Quick' | 'CB Dead / Needs Charging' | 'Quick-Anon' | 'Quick-Student';
 export type LoanStatus = 'active' | 'returned';
 
 export interface Student {

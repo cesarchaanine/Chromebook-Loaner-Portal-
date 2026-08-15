@@ -388,7 +388,7 @@ function MainApp() {
   const [searchResults, setSearchResults] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [assetTag, setAssetTag] = useState('');
-  const [reason, setReason] = useState<LoanReason>('Lost Chromebook');
+  const [reason, setReason] = useState<LoanReason>('Loaner');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const [quickAssetTag, setQuickAssetTag] = useState('');
@@ -819,39 +819,78 @@ function MainApp() {
     }
   }, [selectedLocation, loadData]);
 
-  const handleFactoryReset = useCallback(async () => {
-    setDbStatus({ message: 'FACTORY RESET IN PROGRESS...', type: 'loading' });
+  const handleCampusFactoryReset = useCallback(async (targetLoc?: string) => {
+    const loc = (targetLoc || selectedLocation) as LocationKey;
+    setDbStatus({ message: `CAMPUS WIPE IN PROGRESS FOR ${loc}...`, type: 'loading' });
     try {
-      // LOANS ARE NO LONGER DELETED TO PRESERVE DATA FOR REPORTS
-      // We only clear the local view for everything
-      
-      // Clear students
+      // 1. Wipe all students for this campus from database
+      await studentService.clearStudents(loc);
+
+      // 2. Wipe all technicians assigned to this campus from database
+      await userService.clearTechs(loc);
+
+      // 3. Wipe all loans for this campus from database
+      await loanService.clearLoans(loc);
+
+      // 4. Remove session reset timestamps from local storage for this campus
+      localStorage.removeItem(`aoh_portal_cb_reset_ts_${loc}`);
+      localStorage.removeItem(`aoh_portal_chg_reset_ts_${loc}`);
+      localStorage.removeItem(`aoh_portal_quick_cb_reset_ts_${loc}`);
+      localStorage.removeItem(`aoh_portal_forgotten_reset_ts_${loc}`);
+      localStorage.removeItem(`aoh_portal_broken_reset_ts_${loc}`);
+      localStorage.removeItem(`aoh_portal_lost_reset_ts_${loc}`);
+      localStorage.removeItem(`aoh_portal_quick_chg_reset_ts_${loc}`);
+      localStorage.removeItem(`aoh_portal_quick_anon_chg_reset_ts_${loc}`);
+
+      if (loc === selectedLocation) {
+        setActiveLoans([]);
+        setRecentLoans([]);
+        setSelectedStudent(null);
+        setSearchResults([]);
+        await loadTechs();
+        await loadData(loc, true);
+      }
+      setDbStatus({ message: `SUCCESS: Campus ${loc} factory wiped! All students, techs, and loans cleared.`, type: 'success' });
+    } catch (err: any) {
+      console.error("Campus factory reset error:", err);
+      setDbStatus({ message: `CAMPUS RESET FAILED: ${err.message}`, type: 'error' });
+    }
+  }, [selectedLocation, loadData]);
+
+  const handleFactoryReset = useCallback(async () => {
+    setDbStatus({ message: 'GLOBAL FACTORY RESET IN PROGRESS...', type: 'loading' });
+    try {
+      // 1. Wipe all students from database
       await studentService.wipeAllStudents();
       
-      // Clear techs (users)
-      const usersRef = collection(db, 'users');
-      const snapshot = await getDocs(usersRef);
-      const batch = writeBatch(db);
-      snapshot.docs.forEach(d => {
-        // Only delete techs, keep the current admin or let them reload?
-        // Usually factory reset means EVERYTHING.
-        batch.delete(d.ref);
-      });
-      await batch.commit();
+      // 2. Wipe all technicians from database
+      await userService.wipeAllTechs();
 
-      const now = Date.now().toString();
+      // 3. Wipe all loans from database
+      await loanService.wipeAllLoans();
+
+      // 4. Clear all local storage session markers for all campuses
       LOCATIONS.forEach(loc => {
-        localStorage.setItem(`aoh_portal_cb_reset_ts_${loc}`, now);
-        localStorage.setItem(`aoh_portal_chg_reset_ts_${loc}`, now);
-        localStorage.setItem(`aoh_portal_quick_cb_reset_ts_${loc}`, now);
-        localStorage.setItem(`aoh_portal_forgotten_reset_ts_${loc}`, now);
-        localStorage.setItem(`aoh_portal_broken_reset_ts_${loc}`, now);
-        localStorage.setItem(`aoh_portal_lost_reset_ts_${loc}`, now);
-        localStorage.setItem(`aoh_portal_quick_chg_reset_ts_${loc}`, now);
-        localStorage.setItem(`aoh_portal_quick_anon_chg_reset_ts_${loc}`, now);
+        localStorage.removeItem(`aoh_portal_cb_reset_ts_${loc}`);
+        localStorage.removeItem(`aoh_portal_chg_reset_ts_${loc}`);
+        localStorage.removeItem(`aoh_portal_quick_cb_reset_ts_${loc}`);
+        localStorage.removeItem(`aoh_portal_forgotten_reset_ts_${loc}`);
+        localStorage.removeItem(`aoh_portal_broken_reset_ts_${loc}`);
+        localStorage.removeItem(`aoh_portal_lost_reset_ts_${loc}`);
+        localStorage.removeItem(`aoh_portal_quick_chg_reset_ts_${loc}`);
+        localStorage.removeItem(`aoh_portal_quick_anon_chg_reset_ts_${loc}`);
       });
       
-      window.location.reload();
+      setActiveLoans([]);
+      setRecentLoans([]);
+      setSelectedStudent(null);
+      setSearchResults([]);
+      setTechs([]);
+
+      setDbStatus({ message: 'GLOBAL FACTORY RESET COMPLETE! Database and system wiped.', type: 'success' });
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (err: any) {
       console.error("Factory reset error:", err);
       setDbStatus({ message: `RESET FAILED: ${err.message}`, type: 'error' });
@@ -1493,13 +1532,13 @@ function MainApp() {
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Reason for Loaner</label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-                    {(['Lost Chromebook', 'Forgotten at Home', 'Broken', 'CB Dead / Needs Charging', 'Other'] as LoanReason[]).map(r => (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                    {(['Loaner', 'Lost Chromebook', 'Forgotten at Home', 'Broken', 'CB Dead / Needs Charging', 'Other'] as LoanReason[]).map(r => (
                       <button 
                         key={r}
                         onClick={() => setReason(r)}
                         className={cn(
-                          "p-4 rounded-lg border-2 text-[9px] font-black uppercase transition-all tracking-tight leading-normal h-16 flex items-center justify-center text-center",
+                          "p-3 rounded-lg border-2 text-[9px] font-black uppercase transition-all tracking-tight leading-normal h-16 flex items-center justify-center text-center",
                           reason === r 
                             ? "bg-maroon-900 border-maroon-950 text-white shadow-inner" 
                             : "bg-slate-50 border-maroon-900 text-slate-600 hover:bg-white"
@@ -1826,17 +1865,25 @@ function MainApp() {
                   <div className="p-4 bg-red-50 border-2 border-maroon-900 rounded-xl space-y-3 shadow-sm">
                     <div className="flex items-center gap-2 text-red-700">
                       <AlertTriangle size={16} />
-                      <span className="text-[10px] font-black uppercase tracking-wider">Danger Zone</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider">Danger Zone (Database Wipes)</span>
                     </div>
                     <p className="text-[9px] text-red-600 font-bold leading-relaxed">
-                      A factory wipe deletes students and technicians. Activity history is preserved in the database for reporting but cleared from all views.
+                      Factory reset permanently wipes students, technicians, and loan records from the database.
                     </p>
-                    <HoldToResetButton 
-                      onReset={handleFactoryReset}
-                      label="Factory Reset (Total Wipe)"
-                      className="w-full py-3 bg-red-600 text-white border-2 border-maroon-950 hover:bg-red-700 rounded-lg shadow-md"
-                      icon={<Trash2 size={12} />}
-                    />
+                    <div className="flex flex-col gap-2">
+                      <HoldToResetButton 
+                        onReset={() => handleCampusFactoryReset(selectedLocation)}
+                        label={`Factory Reset (${selectedLocation} Campus)`}
+                        className="w-full py-3 bg-red-100 text-red-800 border-2 border-red-900 hover:bg-red-200 rounded-lg shadow-sm"
+                        icon={<RotateCcw size={12} />}
+                      />
+                      <HoldToResetButton 
+                        onReset={handleFactoryReset}
+                        label="Total Factory Wipe (All Campuses)"
+                        className="w-full py-3 bg-red-600 text-white border-2 border-maroon-950 hover:bg-red-700 rounded-lg shadow-md"
+                        icon={<Trash2 size={12} />}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

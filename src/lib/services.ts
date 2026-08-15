@@ -207,5 +207,37 @@ export const userService = {
   async updateTech(uid: string, data: Partial<User>) {
     const techRef = doc(db, 'users', uid);
     return updateDoc(techRef, data);
+  },
+
+  async clearTechs(location: string) {
+    const q = query(
+      collection(db, 'users'), 
+      where('role', '==', 'tech'),
+      where('location', '==', location)
+    );
+    const snapshot = await getDocs(q);
+    const chunks = [];
+    for (let i = 0; i < snapshot.docs.length; i += 500) {
+      chunks.push(snapshot.docs.slice(i, i + 500));
+    }
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+  },
+
+  async wipeAllTechs() {
+    const q = query(collection(db, 'users'), where('role', '==', 'tech'));
+    const snapshot = await getDocs(q);
+    const chunks = [];
+    for (let i = 0; i < snapshot.docs.length; i += 500) {
+      chunks.push(snapshot.docs.slice(i, i + 500));
+    }
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
   }
 };

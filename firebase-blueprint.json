@@ -34,7 +34,7 @@
         "studentId": { "type": "string" },
         "studentName": { "type": "string" },
         "assetTag": { "type": "string" },
-        "reason": { "type": "string", "enum": ["Lost Chromebook", "Forgotten at Home", "Broken", "Other", "quick", "CB Dead / Needs Charging"] },
+        "reason": { "type": "string", "enum": ["Loaner", "Lost Chromebook", "Forgotten at Home", "Broken", "Other", "quick", "CB Dead / Needs Charging"] },
         "location": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "returned"] },
         "techId": { "type": "string" },
