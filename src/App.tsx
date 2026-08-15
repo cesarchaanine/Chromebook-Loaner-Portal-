@@ -987,52 +987,118 @@ function MainApp() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setDbStatus({ message: 'Verifying permissions...', type: 'loading', progress: 0 });
+    setDbStatus({ message: 'Analyzing CSV file...', type: 'loading', progress: 0 });
 
     Papa.parse(file, {
       header: true,
-      skipEmptyLines: true,
+      skipEmptyLines: 'greedy',
+      dynamicTyping: false,
+      transformHeader: (header) => header.trim().replace(/^[\uFEFF\xEF\xBB\xBF]/, ''),
       complete: async (results) => {
-        const students = results.data.map((row: any) => {
-          // Normalize matching for headers
-          const keys = Object.keys(row);
-          const getVal = (patterns: string[]) => {
-            const match = keys.find(k => {
-              const cleaned = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-              return patterns.some(p => cleaned.includes(p));
-            });
-            return match ? String(row[match]).trim() : '';
-          };
+        const rawRows = results.data as Record<string, any>[];
+        if (!rawRows || rawRows.length === 0) {
+          setDbStatus({ message: 'FAILED: CSV file is empty or could not be read.', type: 'error' });
+          return;
+        }
 
-          const id = getVal(['schoolid', 'studentid', 'id']);
-          const fName = getVal(['firstname', 'first']);
-          const lName = getVal(['lastname', 'last']);
-          const email = getVal(['email']);
-          const grade = getVal(['grade']);
-          const fullName = getVal(['studentname', 'name']);
-          
-          // Logic: Prioritize combined First + Last if both exist, otherwise use full name field
-          let finalName = '';
-          if (fName && lName) {
-            finalName = `${fName} ${lName}`.replace(/\s+/g, ' ').trim();
-          } else {
-            finalName = (fullName || fName || lName || 'MISSING_NAME').trim();
+        const keys = Object.keys(rawRows[0] || {});
+
+        // Helper to find column header using exact match first, then strict fallback
+        const findColumn = (exactList: string[], fallbackList: string[], excludeList: string[] = []) => {
+          // Pass 1: Exact matches after cleaning
+          for (const pattern of exactList) {
+            const found = keys.find(k => {
+              const cleaned = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return cleaned === pattern;
+            });
+            if (found) return found;
           }
-          
-          return { 
-            id: id || 'MISSING_ID', 
+          // Pass 2: Fallback containing pattern, excluding ambiguous columns (like valid, paid, residence, building, etc.)
+          for (const pattern of fallbackList) {
+            const found = keys.find(k => {
+              const cleaned = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (excludeList.some(ex => cleaned.includes(ex))) return false;
+              return cleaned.includes(pattern);
+            });
+            if (found) return found;
+          }
+          return null;
+        };
+
+        const idCol = findColumn(
+          ['studentid', 'schoolid', 'studentnumber', 'sisid', 'studentno', 'localid', 'studentstateid', 'statestudentid', 'idnumber', 'studentbadge', 'badgenumber', 'id', 'student_id', 'school_id'],
+          ['studentid', 'schoolid', 'studentno', 'studentnum', 'sisid'],
+          ['building', 'campus', 'district', 'room', 'homeroom', 'guardian', 'parent', 'teacher', 'advisor', 'valid', 'residence', 'resident', 'paid', 'guidance', 'incident', 'accident', 'provider']
+        );
+
+        const fNameCol = findColumn(
+          ['firstname', 'first', 'fname', 'studentfirstname', 'givenname', 'preferredname', 'studentfirst'],
+          ['firstname', 'first_name', 'studentfirst', 'fname'],
+          ['firstlanguage', 'firstentry', 'firstday', 'firstperiod', 'guardian', 'parent', 'teacher', 'advisor', 'emergency']
+        );
+
+        const lNameCol = findColumn(
+          ['lastname', 'last', 'lname', 'studentlastname', 'surname', 'familyname', 'studentlast'],
+          ['lastname', 'last_name', 'studentlast', 'lname', 'surname'],
+          ['guardian', 'parent', 'teacher', 'advisor', 'emergency']
+        );
+
+        const fullNameCol = findColumn(
+          ['studentname', 'fullname', 'name', 'student', 'studentfullname', 'legalname', 'displayname', 'studentlegalname'],
+          ['studentname', 'fullname', 'student_name'],
+          ['schoolname', 'campusname', 'districtname', 'buildingname', 'guardian', 'parent', 'teacher', 'advisor', 'contactname']
+        );
+
+        const emailCol = findColumn(
+          ['studentemail', 'email', 'emailaddress', 'useremail', 'studentemailaddress', 'mail', 'schoolmail'],
+          ['studentemail', 'email'],
+          ['guardian', 'parent', 'teacher', 'advisor', 'contactemail']
+        );
+
+        const gradeCol = findColumn(
+          ['grade', 'gradelevel', 'grad', 'studentgrade', 'classgrade', 'level', 'currentgrade', 'grd'],
+          ['gradelevel', 'grade_level', 'studentgrade'],
+          []
+        );
+
+        const students = rawRows.map((row: any, idx: number) => {
+          const rawId = idCol && row[idCol] !== undefined ? String(row[idCol]).trim() : '';
+          const rawFName = fNameCol && row[fNameCol] !== undefined ? String(row[fNameCol]).trim() : '';
+          const rawLName = lNameCol && row[lNameCol] !== undefined ? String(row[lNameCol]).trim() : '';
+          const rawFullName = fullNameCol && row[fullNameCol] !== undefined ? String(row[fullNameCol]).trim() : '';
+          const rawEmail = emailCol && row[emailCol] !== undefined ? String(row[emailCol]).trim() : '';
+          const rawGrade = gradeCol && row[gradeCol] !== undefined ? String(row[gradeCol]).trim() : '';
+
+          let finalName = '';
+          if (rawFName && rawLName) {
+            finalName = `${rawFName} ${rawLName}`.replace(/\s+/g, ' ').trim();
+          } else if (rawFullName) {
+            finalName = rawFullName.replace(/\s+/g, ' ').trim();
+          } else if (rawFName || rawLName) {
+            finalName = (rawFName || rawLName).trim();
+          } else {
+            // Fallback to first non-empty string in row if name is missing
+            const fallbackVal = Object.values(row).find(v => typeof v === 'string' && v.trim().length > 1);
+            finalName = fallbackVal ? String(fallbackVal).trim() : `Student ${idx + 1}`;
+          }
+
+          // If ID is missing, assign a safe fallback ID based on index/name hash
+          const finalId = rawId || `ID_${idx + 1}`;
+
+          return {
+            id: finalId,
             name: finalName,
-            email: email || null,
-            grade: grade || null
+            email: rawEmail || null,
+            grade: rawGrade || null
           };
-        }).filter(s => s.id !== 'MISSING_ID' && s.name !== 'MISSING_NAME');
+        }).filter(s => s.name.trim() !== '' && s.id.trim() !== '');
 
         if (students.length > 0) {
           try {
-            setDbStatus({ message: `Preparing ${students.length} records...`, type: 'loading', progress: 5 });
+            setDbStatus({ message: `Preparing ${students.length} student records from CSV (${rawRows.length} rows detected)...`, type: 'loading', progress: 5 });
             
             // Short delay to ensure Firebase Auth has settled if just reloaded
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 300));
 
             await studentService.uploadStudents(
               selectedLocation, 
@@ -1041,7 +1107,7 @@ function MainApp() {
             );
             
             setDbStatus({ 
-              message: `SUCCESS: Updated ${students.length} students for ${selectedLocation}`, 
+              message: `SUCCESS: Imported all ${students.length} students for ${selectedLocation}`, 
               type: 'success' 
             });
           } catch (err: any) {
@@ -1052,7 +1118,7 @@ function MainApp() {
             });
           }
         } else {
-          setDbStatus({ message: 'FAILED: No valid student data (School Id # / Name) found.', type: 'error' });
+          setDbStatus({ message: `FAILED: No valid student records found across ${rawRows.length} rows. Check CSV headers.`, type: 'error' });
         }
       }
     });
