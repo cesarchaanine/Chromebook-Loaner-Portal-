@@ -20,7 +20,11 @@ import {
   ChevronDown,
   RotateCcw,
   Home,
-  AlertTriangle
+  AlertTriangle,
+  Database,
+  Users,
+  FileText,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -557,6 +561,18 @@ function MainApp() {
   const [isManageMode, setIsManageMode] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  // Wipe Confirmation Report Modal
+  const [wipeResultModal, setWipeResultModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    scope: string;
+    studentsDeleted: number;
+    techsDeleted: number;
+    loansDeleted: number;
+    timestamp: string;
+    isTotalWipe?: boolean;
+  } | null>(null);
+
   // Lock tech to their assigned location
   useEffect(() => {
     if (user?.role === 'tech' && user.location) {
@@ -824,13 +840,13 @@ function MainApp() {
     setDbStatus({ message: `CAMPUS WIPE IN PROGRESS FOR ${loc}...`, type: 'loading' });
     try {
       // 1. Wipe all students for this campus from database
-      await studentService.clearStudents(loc);
+      const deletedStudents = await studentService.clearStudents(loc);
 
       // 2. Wipe all technicians assigned to this campus from database
-      await userService.clearTechs(loc);
+      const deletedTechs = await userService.clearTechs(loc);
 
       // 3. Wipe all loans for this campus from database
-      await loanService.clearLoans(loc);
+      const deletedLoans = await loanService.clearLoans(loc);
 
       // 4. Remove session reset timestamps from local storage for this campus
       localStorage.removeItem(`aoh_portal_cb_reset_ts_${loc}`);
@@ -846,11 +862,25 @@ function MainApp() {
         setActiveLoans([]);
         setRecentLoans([]);
         setSelectedStudent(null);
+        setSelectedQuickStudent(null);
         setSearchResults([]);
+        setChargerSearchResults([]);
+        setSearchQuery('');
+        setChargerSearchQuery('');
         await loadTechs();
         await loadData(loc, true);
       }
       setDbStatus({ message: `SUCCESS: Campus ${loc} factory wiped! All students, techs, and loans cleared.`, type: 'success' });
+      setWipeResultModal({
+        isOpen: true,
+        title: `Campus Factory Reset Complete`,
+        scope: `${loc} Campus`,
+        studentsDeleted: deletedStudents,
+        techsDeleted: deletedTechs,
+        loansDeleted: deletedLoans,
+        timestamp: new Date().toLocaleTimeString(),
+        isTotalWipe: false
+      });
     } catch (err: any) {
       console.error("Campus factory reset error:", err);
       setDbStatus({ message: `CAMPUS RESET FAILED: ${err.message}`, type: 'error' });
@@ -861,13 +891,13 @@ function MainApp() {
     setDbStatus({ message: 'GLOBAL FACTORY RESET IN PROGRESS...', type: 'loading' });
     try {
       // 1. Wipe all students from database
-      await studentService.wipeAllStudents();
+      const deletedStudents = await studentService.wipeAllStudents();
       
       // 2. Wipe all technicians from database
-      await userService.wipeAllTechs();
+      const deletedTechs = await userService.wipeAllTechs();
 
       // 3. Wipe all loans from database
-      await loanService.wipeAllLoans();
+      const deletedLoans = await loanService.wipeAllLoans();
 
       // 4. Clear all local storage session markers for all campuses
       LOCATIONS.forEach(loc => {
@@ -884,13 +914,24 @@ function MainApp() {
       setActiveLoans([]);
       setRecentLoans([]);
       setSelectedStudent(null);
+      setSelectedQuickStudent(null);
       setSearchResults([]);
+      setChargerSearchResults([]);
+      setSearchQuery('');
+      setChargerSearchQuery('');
       setTechs([]);
 
       setDbStatus({ message: 'GLOBAL FACTORY RESET COMPLETE! Database and system wiped.', type: 'success' });
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      setWipeResultModal({
+        isOpen: true,
+        title: `Total Factory Wipe Complete`,
+        scope: `All 13 Campuses & Entire Database`,
+        studentsDeleted: deletedStudents,
+        techsDeleted: deletedTechs,
+        loansDeleted: deletedLoans,
+        timestamp: new Date().toLocaleTimeString(),
+        isTotalWipe: true
+      });
     } catch (err: any) {
       console.error("Factory reset error:", err);
       setDbStatus({ message: `RESET FAILED: ${err.message}`, type: 'error' });
@@ -917,10 +958,26 @@ function MainApp() {
     if (!user || user.role !== 'admin') return;
     if (!confirm(`WARNING: This will permanently delete ALL student records for ${selectedLocation}. This cannot be undone. Are you sure?`)) return;
     
-    setDbStatus({ message: 'Deleting database...', type: 'loading' });
+    setDbStatus({ message: 'Deleting student database...', type: 'loading' });
     try {
-      await studentService.clearStudents(selectedLocation);
-      setDbStatus({ message: 'SUCCESS: Student database cleared.', type: 'success' });
+      const deletedStudents = await studentService.clearStudents(selectedLocation);
+      setSelectedStudent(null);
+      setSelectedQuickStudent(null);
+      setSearchResults([]);
+      setChargerSearchResults([]);
+      setSearchQuery('');
+      setChargerSearchQuery('');
+      setDbStatus({ message: `SUCCESS: Student database for ${selectedLocation} cleared (${deletedStudents} records removed).`, type: 'success' });
+      setWipeResultModal({
+        isOpen: true,
+        title: `Student Roster Erased`,
+        scope: `${selectedLocation} Campus`,
+        studentsDeleted: deletedStudents,
+        techsDeleted: 0,
+        loansDeleted: 0,
+        timestamp: new Date().toLocaleTimeString(),
+        isTotalWipe: false
+      });
     } catch (err: any) {
       setDbStatus({ message: `FAILED: ${err.message}`, type: 'error' });
     }
@@ -2282,6 +2339,94 @@ function MainApp() {
            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500/50" /> System Live</span>
            <span>ILTEXAS LOANER PORTAL 2026</span>
         </div>
+
+        {/* Wipe Result Confirmation Modal */}
+        <AnimatePresence>
+          {wipeResultModal && wipeResultModal.isOpen && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            >
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                className="bg-white border-2 border-maroon-950 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              >
+                {/* Modal Header */}
+                <div className="bg-emerald-800 text-white p-6 text-center relative">
+                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-white/40 shadow-inner">
+                    <CheckCircle2 size={36} className="text-white" />
+                  </div>
+                  <h3 className="text-lg font-black uppercase tracking-wider">{wipeResultModal.title}</h3>
+                  <p className="text-emerald-100 text-[11px] font-bold mt-1 tracking-wide">
+                    Database Wipe & System Purge Completed
+                  </p>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-6 space-y-4">
+                  <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-4 space-y-3">
+                    <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200 font-bold">
+                      <span className="text-slate-500 uppercase tracking-wider">Target Scope</span>
+                      <span className="text-slate-900 font-black">{wipeResultModal.scope}</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                      <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="text-[18px] font-black text-red-700">{wipeResultModal.studentsDeleted}</div>
+                        <div className="text-[8px] font-bold text-red-600 uppercase tracking-wider mt-0.5">Students Wiped</div>
+                      </div>
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="text-[18px] font-black text-amber-700">{wipeResultModal.techsDeleted}</div>
+                        <div className="text-[8px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">Techs Cleared</div>
+                      </div>
+                      <div className="p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="text-[18px] font-black text-purple-700">{wipeResultModal.loansDeleted}</div>
+                        <div className="text-[8px] font-bold text-purple-600 uppercase tracking-wider mt-0.5">Loans Erased</div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-[10px] pt-2 border-t border-slate-200 text-slate-500 font-bold">
+                      <span>Completed at:</span>
+                      <span className="font-mono text-slate-700 font-bold">{wipeResultModal.timestamp}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-bold leading-relaxed flex items-start gap-2.5">
+                    <Sparkles size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span>All specified records have been permanently expunged from the live database. Live search and session counters have been set to 0.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    {wipeResultModal.isTotalWipe ? (
+                      <button
+                        onClick={() => {
+                          setWipeResultModal(null);
+                          window.location.reload();
+                        }}
+                        className="w-full py-3.5 bg-maroon-900 text-white rounded-xl font-black uppercase text-xs tracking-widest hover:bg-maroon-950 transition-all border-2 border-maroon-950 shadow-md flex items-center justify-center gap-2"
+                      >
+                        <RotateCcw size={14} /> Done & Reload Portal
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setWipeResultModal(null)}
+                        className="w-full py-3.5 bg-maroon-900 text-white rounded-xl font-black uppercase text-xs tracking-widest hover:bg-maroon-950 transition-all border-2 border-maroon-950 shadow-md flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 size={14} /> Acknowledge & Close
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );

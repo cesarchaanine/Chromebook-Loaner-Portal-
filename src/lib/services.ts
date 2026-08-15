@@ -71,9 +71,10 @@ export const loanService = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
   },
 
-  async clearLoans(location: string) {
+  async clearLoans(location: string): Promise<number> {
     const q = query(collection(db, 'loans'), where('location', '==', location));
     const snapshot = await getDocs(q);
+    const count = snapshot.docs.length;
     
     const chunks = [];
     for (let i = 0; i < snapshot.docs.length; i += 500) {
@@ -85,11 +86,13 @@ export const loanService = {
       chunk.forEach(doc => batch.delete(doc.ref));
       await batch.commit();
     }
+    return count;
   },
 
-  async wipeAllLoans() {
+  async wipeAllLoans(): Promise<number> {
     const loansRef = collection(db, 'loans');
     const snapshot = await getDocs(loansRef);
+    const count = snapshot.docs.length;
     const chunks = [];
     for (let i = 0; i < snapshot.docs.length; i += 500) {
       chunks.push(snapshot.docs.slice(i, i + 500));
@@ -99,6 +102,7 @@ export const loanService = {
       chunk.forEach(d => batch.delete(d.ref));
       await batch.commit();
     }
+    return count;
   },
 
   async getStudentChromebookLoanCount(studentId: string) {
@@ -149,14 +153,19 @@ export const studentService = {
     }
   },
 
-  async clearStudents(location: string) {
-    const q = query(collection(db, 'students'), where('location', '==', location));
-    const snapshot = await getDocs(q);
+  async clearStudents(location: string): Promise<number> {
+    const studentsRef = collection(db, 'students');
+    const snapshot = await getDocs(studentsRef);
+    const docsToDelete = snapshot.docs.filter(d => {
+      const data = d.data();
+      return data.location === location || d.id.startsWith(`${location}_`);
+    });
+    const count = docsToDelete.length;
     
     // Batch delete in chunks of 500
     const chunks = [];
-    for (let i = 0; i < snapshot.docs.length; i += 500) {
-      chunks.push(snapshot.docs.slice(i, i + 500));
+    for (let i = 0; i < docsToDelete.length; i += 500) {
+      chunks.push(docsToDelete.slice(i, i + 500));
     }
 
     for (const chunk of chunks) {
@@ -164,11 +173,13 @@ export const studentService = {
       chunk.forEach(doc => batch.delete(doc.ref));
       await batch.commit();
     }
+    return count;
   },
 
-  async wipeAllStudents() {
+  async wipeAllStudents(): Promise<number> {
     const studentsRef = collection(db, 'students');
     const snapshot = await getDocs(studentsRef);
+    const count = snapshot.docs.length;
     const chunks = [];
     for (let i = 0; i < snapshot.docs.length; i += 500) {
       chunks.push(snapshot.docs.slice(i, i + 500));
@@ -178,6 +189,7 @@ export const studentService = {
       chunk.forEach(d => batch.delete(d.ref));
       await batch.commit();
     }
+    return count;
   }
 };
 
@@ -209,13 +221,14 @@ export const userService = {
     return updateDoc(techRef, data);
   },
 
-  async clearTechs(location: string) {
+  async clearTechs(location: string): Promise<number> {
     const q = query(
       collection(db, 'users'), 
       where('role', '==', 'tech'),
       where('location', '==', location)
     );
     const snapshot = await getDocs(q);
+    const count = snapshot.docs.length;
     const chunks = [];
     for (let i = 0; i < snapshot.docs.length; i += 500) {
       chunks.push(snapshot.docs.slice(i, i + 500));
@@ -225,11 +238,13 @@ export const userService = {
       chunk.forEach(d => batch.delete(d.ref));
       await batch.commit();
     }
+    return count;
   },
 
-  async wipeAllTechs() {
+  async wipeAllTechs(): Promise<number> {
     const q = query(collection(db, 'users'), where('role', '==', 'tech'));
     const snapshot = await getDocs(q);
+    const count = snapshot.docs.length;
     const chunks = [];
     for (let i = 0; i < snapshot.docs.length; i += 500) {
       chunks.push(snapshot.docs.slice(i, i + 500));
@@ -239,5 +254,6 @@ export const userService = {
       chunk.forEach(d => batch.delete(d.ref));
       await batch.commit();
     }
+    return count;
   }
 };
