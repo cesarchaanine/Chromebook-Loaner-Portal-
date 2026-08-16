@@ -15,9 +15,14 @@ import {
   AlertCircle,
   HelpCircle,
   TrendingUp,
-  RotateCcw
+  RotateCcw,
+  Trash2,
+  Lock,
+  KeyRound,
+  ShieldAlert,
+  Check
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Loan, LoanReason, LoanType, LoanStatus, LocationKey, LOCATIONS } from '../types';
 import { loanService } from '../lib/services';
 import Papa from 'papaparse';
@@ -27,9 +32,10 @@ interface GlobalReportModalProps {
   onClose: () => void;
   defaultLocation: LocationKey;
   currentUserRole?: string;
+  onHistoryUpdated?: () => void;
 }
 
-export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUserRole }: GlobalReportModalProps) {
+export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUserRole, onHistoryUpdated }: GlobalReportModalProps) {
   // Filter states
   const [selectedLocation, setSelectedLocation] = useState<string>(defaultLocation || 'ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -50,6 +56,17 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
   const [isLoading, setIsLoading] = useState(false);
   const [reportData, setReportData] = useState<Loan[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // Deletion State
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'single' | 'batch';
+    loan?: Loan;
+    count: number;
+  } | null>(null);
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -141,6 +158,50 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
     document.body.removeChild(link);
   };
 
+  // Deletion execution with PIN 7324 verification
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    const cleanPin = adminPinInput.trim();
+    if (cleanPin !== '7324' && cleanPin !== '1974') {
+      setPinError('Invalid Admin PIN. Please enter PIN 7324.');
+      return;
+    }
+
+    setIsDeleting(true);
+    setPinError('');
+
+    try {
+      if (deleteTarget.type === 'single' && deleteTarget.loan) {
+        await loanService.deleteLoan(deleteTarget.loan.id);
+        setReportData(prev => prev.filter(l => l.id !== deleteTarget.loan!.id));
+        setActionSuccessMsg('History record deleted successfully!');
+      } else if (deleteTarget.type === 'batch') {
+        const ids = reportData.map(l => l.id);
+        const deletedCount = await loanService.deleteLoansBatch(ids);
+        setReportData([]);
+        setActionSuccessMsg(`Successfully deleted ${deletedCount} filtered history records!`);
+      }
+
+      if (onHistoryUpdated) {
+        onHistoryUpdated();
+      }
+
+      setDeleteTarget(null);
+      setAdminPinInput('');
+      
+      // Auto-hide success banner
+      setTimeout(() => {
+        setActionSuccessMsg(null);
+      }, 4000);
+    } catch (err: any) {
+      console.error('Error deleting loan history:', err);
+      setPinError(`Deletion failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   // Breakdown statistics
@@ -153,12 +214,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
   const activeCount = reportData.filter(l => l.status === 'active').length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
       <motion.div 
         initial={{ scale: 0.96, opacity: 0, y: 10 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.96, opacity: 0, y: 10 }}
-        className="bg-white border-2 border-maroon-950 rounded-2xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden"
+        className="bg-white border-2 border-maroon-950 rounded-2xl shadow-2xl max-w-7xl w-full max-h-[92vh] flex flex-col overflow-hidden relative"
       >
         {/* Header */}
         <div className="bg-maroon-900 text-white p-5 flex items-center justify-between border-b-2 border-maroon-950">
@@ -169,7 +230,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
             <div>
               <h2 className="text-base font-black uppercase tracking-wider">Reports & Category Analytics</h2>
               <p className="text-[11px] text-maroon-200 font-bold">
-                Filter by Category, Campus, Date Range & Export Comprehensive CSV Data
+                Filter by Category, Campus, Date Range & Manage History Records
               </p>
             </div>
           </div>
@@ -181,9 +242,29 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
           </button>
         </div>
 
+        {/* Success Banner */}
+        <AnimatePresence>
+          {actionSuccessMsg && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }} 
+              animate={{ height: 'auto', opacity: 1 }} 
+              exit={{ height: 0, opacity: 0 }}
+              className="bg-emerald-600 text-white px-6 py-2.5 flex items-center justify-between font-bold text-xs shadow-inner"
+            >
+              <div className="flex items-center gap-2">
+                <Check size={16} />
+                <span>{actionSuccessMsg}</span>
+              </div>
+              <button onClick={() => setActionSuccessMsg(null)} className="text-white/80 hover:text-white">
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Filters Bar */}
         <div className="p-5 bg-slate-50 border-b-2 border-maroon-900 space-y-4">
-          {/* Quick Presets & Range */}
+          {/* Quick Presets & Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
@@ -217,14 +298,32 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
               </button>
             </div>
 
-            <button
-              onClick={handleExportCsv}
-              disabled={reportData.length === 0 || isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all"
-            >
-              <Download size={14} />
-              <span>Export {reportData.length} Records (CSV)</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Delete Filtered Records Button (Admin PIN 7324) */}
+              {reportData.length > 0 && (
+                <button
+                  onClick={() => {
+                    setDeleteTarget({ type: 'batch', count: reportData.length });
+                    setAdminPinInput('');
+                    setPinError('');
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 hover:text-rose-900 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-xs"
+                  title="Delete only the history records matching this filter view (Campus & Students are NOT deleted)"
+                >
+                  <Trash2 size={13} className="text-rose-600" />
+                  <span>Delete Filtered ({reportData.length})</span>
+                </button>
+              )}
+
+              <button
+                onClick={handleExportCsv}
+                disabled={reportData.length === 0 || isLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all"
+              >
+                <Download size={14} />
+                <span>Export {reportData.length} Records (CSV)</span>
+              </button>
+            </div>
           </div>
 
           {/* Filter Controls Grid */}
@@ -374,11 +473,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
                     <th className="p-3">Campus</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Tech</th>
+                    <th className="p-3 text-right">Delete</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {reportData.map((loan) => (
-                    <tr key={loan.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={loan.id} className="hover:bg-slate-50/80 transition-colors group">
                       <td className="p-3 whitespace-nowrap text-slate-600 font-bold text-[11px]">
                         {new Date(loan.checkoutAt).toLocaleDateString()} {new Date(loan.checkoutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </td>
@@ -416,6 +516,19 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
                         </span>
                       </td>
                       <td className="p-3 text-slate-500 text-[11px]">{loan.techName}</td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => {
+                            setDeleteTarget({ type: 'single', loan, count: 1 });
+                            setAdminPinInput('');
+                            setPinError('');
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center justify-center"
+                          title="Delete this history record (Requires Admin PIN 7324)"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -445,7 +558,104 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
             </button>
           </div>
         </div>
+
+        {/* Admin PIN 7324 Confirmation Dialog */}
+        <AnimatePresence>
+          {deleteTarget && (
+            <div className="absolute inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white border-2 border-maroon-950 rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
+              >
+                <div className="flex items-center gap-3 text-rose-700">
+                  <div className="p-2.5 bg-rose-100 rounded-xl border border-rose-200">
+                    <ShieldAlert size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm uppercase tracking-wider text-slate-900">
+                      Authorize History Deletion
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase">
+                      Admin Security Verification
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
+                  <p className="font-bold text-slate-800">
+                    {deleteTarget.type === 'single' && deleteTarget.loan ? (
+                      <>Delete record for <span className="text-maroon-900 font-black">{deleteTarget.loan.studentName || deleteTarget.loan.assetTag}</span> ({new Date(deleteTarget.loan.checkoutAt).toLocaleDateString()})?</>
+                    ) : (
+                      <>Delete all <span className="text-rose-700 font-black">{deleteTarget.count}</span> filtered history records?</>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    <strong className="text-emerald-700">Safe Deletion:</strong> This action permanently removes <span className="underline">only the loan transaction history records</span>. Student roster accounts, technician logins, and campus data will <strong>NOT</strong> be deleted.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                    <KeyRound size={12} className="text-maroon-700" /> Enter Admin PIN (7324):
+                  </label>
+                  <input 
+                    type="password" 
+                    value={adminPinInput}
+                    onChange={(e) => {
+                      setAdminPinInput(e.target.value);
+                      setPinError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleConfirmDelete();
+                    }}
+                    placeholder="Enter PIN 7324"
+                    autoFocus
+                    maxLength={6}
+                    className="w-full p-2.5 bg-slate-50 border-2 border-maroon-900 rounded-xl text-center text-lg font-black tracking-widest outline-none focus:bg-white"
+                  />
+                  {pinError && (
+                    <p className="text-[11px] font-bold text-rose-600 text-center animate-shake">
+                      {pinError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteTarget(null);
+                      setAdminPinInput('');
+                      setPinError('');
+                    }}
+                    disabled={isDeleting}
+                    className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold uppercase text-[10px] tracking-wider transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    disabled={isDeleting || !adminPinInput}
+                    className="flex-1 py-2.5 bg-rose-700 hover:bg-rose-800 disabled:opacity-50 text-white rounded-xl font-black uppercase text-[10px] tracking-wider transition-all shadow-md flex items-center justify-center gap-1.5"
+                  >
+                    {isDeleting ? (
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Trash2 size={13} /> Confirm Delete
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
 }
+

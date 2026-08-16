@@ -89,6 +89,27 @@ export const loanService = {
     return count;
   },
 
+  async deleteLoan(loanId: string) {
+    const loanRef = doc(db, 'loans', loanId);
+    return deleteDoc(loanRef);
+  },
+
+  async deleteLoansBatch(loanIds: string[]): Promise<number> {
+    if (!loanIds || loanIds.length === 0) return 0;
+    const chunks = [];
+    for (let i = 0; i < loanIds.length; i += 500) {
+      chunks.push(loanIds.slice(i, i + 500));
+    }
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(id => {
+        batch.delete(doc(db, 'loans', id));
+      });
+      await batch.commit();
+    }
+    return loanIds.length;
+  },
+
   async wipeAllLoans(): Promise<number> {
     const loansRef = collection(db, 'loans');
     const snapshot = await getDocs(loansRef);
