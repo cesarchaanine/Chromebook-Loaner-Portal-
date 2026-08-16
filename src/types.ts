@@ -9,8 +9,8 @@ export interface User {
   createdAt?: number;
 }
 
-export type LoanType = 'chromebook' | 'charger';
-export type LoanReason = 'Loaner' | 'Lost Chromebook' | 'Forgotten at Home' | 'Broken' | 'Other' | 'Quick' | 'CB Dead / Needs Charging' | 'Quick-Anon' | 'Quick-Student';
+export type LoanType = 'chromebook' | 'charger' | 'headphones';
+export type LoanReason = 'Loaner' | 'Lost Chromebook' | 'Forgotten at Home' | 'Broken' | 'Other' | 'Quick' | 'CB Dead / Needs Charging' | 'Quick-Anon' | 'Quick-Student' | 'Headphones';
 export type LoanStatus = 'active' | 'returned';
 
 export interface Student {
@@ -29,11 +29,13 @@ export interface Loan {
   studentEmail?: string;
   studentGrade?: string;
   assetTag: string;
+  headphoneCount?: number;
   reason: LoanReason;
   location: string;
   status: LoanStatus;
   techId: string;
   techName: string;
+  returnTechName?: string;
   checkoutAt: number; // timestamp
   returnAt?: number; // timestamp
   updatedAt?: number; // timestamp for sorting activity

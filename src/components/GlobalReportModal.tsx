@@ -10,6 +10,7 @@ import {
   Clock, 
   Monitor, 
   Battery, 
+  Headphones,
   AlertTriangle, 
   Home, 
   AlertCircle,
@@ -358,6 +359,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
                 <option value="Broken">Broken</option>
                 <option value="Lost Chromebook">Lost Device</option>
                 <option value="CB Dead / Needs Charging">CB Dead / Charging</option>
+                <option value="Headphones">Headphones Handout</option>
                 <option value="Other">Other</option>
                 <option value="Quick">Quick Loan</option>
                 <option value="Quick-Anon">Quick Anon Charger</option>
@@ -375,6 +377,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
                 <option value="all">All Types</option>
                 <option value="chromebook">Chromebooks Only</option>
                 <option value="charger">Chargers Only</option>
+                <option value="headphones">Headphones Only</option>
               </select>
             </div>
 
@@ -489,22 +492,39 @@ export function GlobalReportModal({ isOpen, onClose, defaultLocation, currentUse
                       <td className="p-3 font-mono text-slate-600 font-bold">{loan.studentId || '—'}</td>
                       <td className="p-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                          loan.type === 'chromebook' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                          loan.type === 'chromebook' ? 'bg-blue-100 text-blue-800' : 
+                          loan.type === 'headphones' ? 'bg-purple-100 text-purple-800' :
+                          'bg-amber-100 text-amber-800'
                         }`}>
-                          {loan.type === 'chromebook' ? <Monitor size={10} /> : <Battery size={10} />}
+                          {loan.type === 'chromebook' ? <Monitor size={10} /> : 
+                           loan.type === 'headphones' ? <Headphones size={10} /> : 
+                           <Battery size={10} />}
                           {loan.type}
                         </span>
                       </td>
-                      <td className="p-3 font-mono font-bold text-slate-700">{loan.assetTag}</td>
+                      <td className="p-3 font-mono font-bold text-slate-700">
+                        {loan.assetTag}
+                        {loan.headphoneCount && loan.headphoneCount > 1 && (
+                          <span className="ml-1 text-[9px] bg-purple-100 text-purple-800 px-1 py-0.2 rounded font-bold">
+                            ({loan.headphoneCount}x)
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold ${
                           loan.reason === 'Broken' ? 'bg-rose-100 text-rose-800' :
                           loan.reason === 'Forgotten at Home' ? 'bg-emerald-100 text-emerald-800' :
                           loan.reason === 'Lost Chromebook' ? 'bg-purple-100 text-purple-800' :
+                          loan.reason === 'Headphones' || loan.type === 'headphones' ? 'bg-purple-100 text-purple-800' :
                           'bg-slate-100 text-slate-700'
                         }`}>
                           {loan.reason}
                         </span>
+                        {loan.classroom && (
+                          <span className="block text-[9px] text-slate-500 font-bold mt-0.5">
+                            {loan.classroom} {loan.teacherName ? `• ${loan.teacherName}` : ''}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3 font-bold text-slate-600">{loan.location}</td>
                       <td className="p-3">

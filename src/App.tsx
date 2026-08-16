@@ -28,7 +28,10 @@ import {
   Download,
   Filter,
   BarChart3,
-  Calendar
+  Calendar,
+  Headphones,
+  DoorOpen,
+  Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -47,6 +50,7 @@ import {
 import { loanService, studentService, userService } from './lib/services';
 import { GlobalReportModal } from './components/GlobalReportModal';
 import { StudentHistoryModal } from './components/StudentHistoryModal';
+import { HeadphoneReportModal } from './components/HeadphoneReportModal';
 import Papa from 'papaparse';
 
 // --- Components ---
@@ -243,6 +247,8 @@ function Login() {
 
 function ActivityRow(props: any) {
   const { loan, onReturn } = props;
+  const isHeadphones = loan.type === 'headphones';
+
   return (
     <div className="text-[10px] flex justify-between items-center border-2 border-maroon-900 mb-3 group hover:bg-slate-50/50 px-4 py-2 rounded-xl transition-all bg-white">
       <div className="flex flex-col items-start gap-1 py-1">
@@ -252,10 +258,19 @@ function ActivityRow(props: any) {
             {loan.studentName}
             {loan.type === 'charger' && loan.studentId === 'ANON' && <span className="text-slate-400 ml-1 font-black lowercase text-[10px]">(untracked)</span>}
           </span>
-          <span className="text-slate-500 font-black lowercase tracking-tight text-[12px]">took {loan.type}</span>
+          {isHeadphones ? (
+            <span className="text-purple-600 font-black lowercase tracking-tight text-[12px] flex items-center gap-1">
+              <Headphones size={13} className="text-purple-600" />
+              took {loan.headphoneCount && loan.headphoneCount > 1 ? `${loan.headphoneCount}x ` : ''}headphones
+            </span>
+          ) : (
+            <span className="text-slate-500 font-black lowercase tracking-tight text-[12px]">took {loan.type}</span>
+          )}
         </div>
         <div className="flex items-center gap-4 pl-4 mt-1">
-          <span className="text-[12px] text-slate-900 font-black uppercase tracking-wider bg-white px-3 py-1 rounded shadow-sm border-2 border-maroon-900">TAG: {loan.assetTag}</span>
+          <span className="text-[12px] text-slate-900 font-black uppercase tracking-wider bg-white px-3 py-1 rounded shadow-sm border-2 border-maroon-900">
+            {isHeadphones ? `HP #: ${loan.assetTag}` : `TAG: ${loan.assetTag}`}
+          </span>
           {loan.type === 'chromebook' && loan.loanFrequency && (
             <span className="text-[10px] text-maroon-700 font-black uppercase tracking-widest bg-maroon-50 px-2 py-1 rounded-md border border-maroon-200">
               {getOrdinal(loan.loanFrequency)} Loan
@@ -426,7 +441,21 @@ function MainApp() {
   const [resetLostTs, setResetLostTs] = useState<number>(0);
   const [resetQuickChargerTs, setResetQuickChargerTs] = useState<number>(0);
   const [resetQuickAnonChargerTs, setResetQuickAnonChargerTs] = useState<number>(0);
+  const [resetHeadphonesTs, setResetHeadphonesTs] = useState<number>(0);
   const [anonChargerQuantity, setAnonChargerQuantity] = useState(0);
+
+  // Headphones Handout & Return States
+  const [headphoneTag, setHeadphoneTag] = useState('');
+  const [headphoneQuantity, setHeadphoneQuantity] = useState(0);
+  const [headphoneRoom, setHeadphoneRoom] = useState('');
+  const [headphoneTeacher, setHeadphoneTeacher] = useState('');
+  const [headphoneDate, setHeadphoneDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [headphoneStatus, setHeadphoneStatus] = useState<{
+    message: string,
+    type: 'success' | 'error' | 'loading' | null
+  }>({ message: '', type: null });
+  const [isHeadphoneReportOpen, setIsHeadphoneReportOpen] = useState(false);
+  const [returningHeadphoneId, setReturningHeadphoneId] = useState<string | null>(null);
 
   const [handoutStatus, setHandoutStatus] = useState<{
     message: string,
@@ -458,6 +487,7 @@ function MainApp() {
     setResetLostTs(parseInt(localStorage.getItem(`aoh_portal_lost_reset_ts_${location}`) || '0', 10));
     setResetQuickChargerTs(parseInt(localStorage.getItem(`aoh_portal_quick_chg_reset_ts_${location}`) || '0', 10));
     setResetQuickAnonChargerTs(parseInt(localStorage.getItem(`aoh_portal_quick_anon_chg_reset_ts_${location}`) || '0', 10));
+    setResetHeadphonesTs(parseInt(localStorage.getItem(`aoh_portal_headphones_reset_ts_${location}`) || '0', 10));
 
     try {
       const [active, recent] = await Promise.all([
@@ -534,6 +564,90 @@ function MainApp() {
     loadData(selectedLocation);
     setHandoutStatus({ message: 'Loaner Charger Session Reset!', type: 'success' });
   }, [selectedLocation, loadData]);
+
+  const handleResetHeadphones = useCallback(() => {
+    const now = Date.now();
+    setResetHeadphonesTs(now);
+    localStorage.setItem(`aoh_portal_headphones_reset_ts_${selectedLocation}`, now.toString());
+    setHeadphoneTag('');
+    setHeadphoneRoom('');
+    setHeadphoneTeacher('');
+    setHeadphoneQuantity(0);
+    loadData(selectedLocation);
+    setHeadphoneStatus({ message: 'Headphones Session Reset!', type: 'success' });
+  }, [selectedLocation, loadData]);
+
+  const handleHeadphonesLoan = async () => {
+    if (!user) return;
+    if (!headphoneTag.trim()) {
+      setHeadphoneStatus({ message: 'Please enter a Headphone Number or Tag', type: 'error' });
+      return;
+    }
+    if (headphoneQuantity <= 0) {
+      setHeadphoneStatus({ message: 'Quantity must be at least 1', type: 'error' });
+      return;
+    }
+
+    setHeadphoneStatus({
+      message: `Checking out ${headphoneQuantity}x Headphone${headphoneQuantity > 1 ? 's' : ''}...`,
+      type: 'loading'
+    });
+
+    try {
+      let checkoutTs = Date.now();
+      if (headphoneDate) {
+        const [y, m, d] = headphoneDate.split('-').map(Number);
+        const now = new Date();
+        const targetDate = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+        checkoutTs = targetDate.getTime();
+      }
+
+      const teacher = headphoneTeacher.trim() || 'Staff / Teacher';
+      const room = headphoneRoom.trim() || 'Classroom';
+
+      await loanService.checkout({
+        type: 'headphones',
+        studentId: 'STAFF/CLASSROOM',
+        studentName: headphoneTeacher.trim() ? `${headphoneTeacher.trim()} (${room})` : (headphoneRoom.trim() ? `Classroom ${room}` : 'Headphones Handout'),
+        assetTag: headphoneTag.trim(),
+        headphoneCount: headphoneQuantity,
+        reason: 'Headphones',
+        classroom: room,
+        teacherName: teacher,
+        location: selectedLocation,
+        techId: user.uid,
+        techName: user.name,
+        checkoutAt: checkoutTs
+      });
+
+      setHeadphoneTag('');
+      setHeadphoneRoom('');
+      setHeadphoneTeacher('');
+      setHeadphoneQuantity(0);
+      setHeadphoneStatus({ 
+        message: `${headphoneQuantity}x Headphone${headphoneQuantity > 1 ? 's' : ''} Checked Out to ${teacher}!`, 
+        type: 'success' 
+      });
+
+      await loadData(selectedLocation, true);
+    } catch (err: any) {
+      console.error("Headphone Checkout Error:", err);
+      setHeadphoneStatus({ message: 'Failed: ' + (err.message || 'Check database'), type: 'error' });
+    }
+  };
+
+  const handleReturnHeadphone = async (loanId: string) => {
+    setReturningHeadphoneId(loanId);
+    try {
+      await loanService.returnLoan(loanId, user?.name || 'Staff Tech');
+      await loadData(selectedLocation, true);
+    } catch (err: any) {
+      console.error("Return error:", err);
+      alert("Failed to return headphones: " + err.message);
+    } finally {
+      setReturningHeadphoneId(null);
+    }
+  };
 
   const [dbStatus, setDbStatus] = useState<{
     message: string, 
@@ -846,6 +960,7 @@ function MainApp() {
       localStorage.setItem(`aoh_portal_lost_reset_ts_${selectedLocation}`, nowStr);
       localStorage.setItem(`aoh_portal_quick_chg_reset_ts_${selectedLocation}`, nowStr);
       localStorage.setItem(`aoh_portal_quick_anon_chg_reset_ts_${selectedLocation}`, nowStr);
+      localStorage.setItem(`aoh_portal_headphones_reset_ts_${selectedLocation}`, nowStr);
       
       setResetCBOutTs(now);
       setResetChargerTs(now);
@@ -855,6 +970,7 @@ function MainApp() {
       setResetLostTs(now);
       setResetQuickChargerTs(now);
       setResetQuickAnonChargerTs(now);
+      setResetHeadphonesTs(now);
       
       await loadData(selectedLocation, true);
       targetStatus({ message: 'Campus activity view cleared!', type: 'success' });
@@ -888,6 +1004,7 @@ function MainApp() {
         localStorage.setItem(`aoh_portal_lost_reset_ts_${loc}`, nowStr);
         localStorage.setItem(`aoh_portal_quick_chg_reset_ts_${loc}`, nowStr);
         localStorage.setItem(`aoh_portal_quick_anon_chg_reset_ts_${loc}`, nowStr);
+        localStorage.setItem(`aoh_portal_headphones_reset_ts_${loc}`, nowStr);
       });
       
       setResetCBOutTs(now);
@@ -898,6 +1015,7 @@ function MainApp() {
       setResetLostTs(now);
       setResetQuickChargerTs(now);
       setResetQuickAnonChargerTs(now);
+      setResetHeadphonesTs(now);
       
       await loadData(selectedLocation, true);
       targetStatus({ message: 'Global activity view cleared!', type: 'success' });
@@ -930,6 +1048,7 @@ function MainApp() {
       localStorage.removeItem(`aoh_portal_lost_reset_ts_${loc}`);
       localStorage.removeItem(`aoh_portal_quick_chg_reset_ts_${loc}`);
       localStorage.removeItem(`aoh_portal_quick_anon_chg_reset_ts_${loc}`);
+      localStorage.removeItem(`aoh_portal_headphones_reset_ts_${loc}`);
 
       if (loc === selectedLocation) {
         setActiveLoans([]);
@@ -982,6 +1101,7 @@ function MainApp() {
         localStorage.removeItem(`aoh_portal_lost_reset_ts_${loc}`);
         localStorage.removeItem(`aoh_portal_quick_chg_reset_ts_${loc}`);
         localStorage.removeItem(`aoh_portal_quick_anon_chg_reset_ts_${loc}`);
+        localStorage.removeItem(`aoh_portal_headphones_reset_ts_${loc}`);
       });
       
       setActiveLoans([]);
@@ -1350,9 +1470,11 @@ function MainApp() {
     const quickChgStart = Math.max(todayTs, resetQuickChargerTs);
     const anonChgStart = Math.max(todayTs, resetQuickAnonChargerTs);
     const quickCbStart = Math.max(todayTs, resetQuickCBTs);
+    const hpStart = Math.max(todayTs, resetHeadphonesTs);
 
     const cbActiveFiltered = activeLoans.filter(l => l.type === 'chromebook' && getTs(l.updatedAt || l.checkoutAt) >= cbStart);
     const chgActiveFiltered = activeLoans.filter(l => l.type === 'charger' && getTs(l.updatedAt || l.checkoutAt) >= chgStart);
+    const hpActiveFiltered = activeLoans.filter(l => l.type === 'headphones' && getTs(l.updatedAt || l.checkoutAt) >= hpStart);
     
     const forgottenCount = activeLoans.filter(l => l.reason === 'Forgotten at Home' && getTs(l.updatedAt || l.checkoutAt) >= forgottenStart).length;
     const brokenCount = activeLoans.filter(l => l.reason === 'Broken' && getTs(l.updatedAt || l.checkoutAt) >= brokenStart).length;
@@ -1364,6 +1486,9 @@ function MainApp() {
     const namedChargerCount = activeLoans.filter(l => l.type === 'charger' && l.reason === 'Quick-Student' && getTs(l.updatedAt || l.checkoutAt) >= quickChgStart).length;
     const anonChargerCount = activeLoans.filter(l => l.type === 'charger' && l.reason === 'Quick-Anon' && getTs(l.updatedAt || l.checkoutAt) >= anonChgStart).length;
 
+    // Headphones out count
+    const headphonesCount = hpActiveFiltered.reduce((sum, l) => sum + (l.headphoneCount || 1), 0);
+
     return {
       chromebooksOut: cbActiveFiltered.length,
       chargersOut: chgActiveFiltered.length,
@@ -1372,9 +1497,10 @@ function MainApp() {
       lostToday: lostCount,
       quickCbOut: quickHandoutCount,
       namedChargersToday: namedChargerCount,
-      anonChargersToday: anonChargerCount
+      anonChargersToday: anonChargerCount,
+      headphonesOut: headphonesCount
     };
-  }, [activeLoans, recentLoans, resetCBOutTs, resetChargerTs, resetForgottenTs, resetBrokenTs, resetLostTs, resetQuickChargerTs, resetQuickCBTs, resetQuickAnonChargerTs]);
+  }, [activeLoans, recentLoans, resetCBOutTs, resetChargerTs, resetForgottenTs, resetBrokenTs, resetLostTs, resetQuickChargerTs, resetQuickCBTs, resetQuickAnonChargerTs, resetHeadphonesTs]);
 
   const [firstName, lastName] = useMemo(() => {
     if (!selectedStudent) return ['', ''];
@@ -1414,6 +1540,7 @@ function MainApp() {
     const quickChgStart = Math.max(todayTs, resetQuickChargerTs);
     const anonChgStart = Math.max(todayTs, resetQuickAnonChargerTs);
     const quickCbStart = Math.max(todayTs, resetQuickCBTs);
+    const hpStart = Math.max(todayTs, resetHeadphonesTs);
 
     // Filter to only show ACTIVE loans in the feed AND respect session resets
     const activeRecent = recentLoans.filter(l => {
@@ -1432,6 +1559,8 @@ function MainApp() {
         if (l.reason === 'Quick-Student') startTs = quickChgStart;
         else if (l.reason === 'Quick-Anon') startTs = anonChgStart;
         else startTs = chgStart;
+      } else if (l.type === 'headphones') {
+        startTs = hpStart;
       }
 
       return ts >= startTs;
@@ -1452,7 +1581,11 @@ function MainApp() {
     });
 
     return groups;
-  }, [recentLoans, resetCBOutTs, resetChargerTs, resetQuickCBTs, resetForgottenTs, resetBrokenTs, resetLostTs, resetQuickChargerTs, resetQuickAnonChargerTs]);
+  }, [recentLoans, resetCBOutTs, resetChargerTs, resetQuickCBTs, resetForgottenTs, resetBrokenTs, resetLostTs, resetQuickChargerTs, resetQuickAnonChargerTs, resetHeadphonesTs]);
+
+  const activeHeadphones = useMemo(() => {
+    return activeLoans.filter(l => l.type === 'headphones');
+  }, [activeLoans]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
@@ -2032,6 +2165,220 @@ function MainApp() {
                   </div>
                 )}
                 <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mt-2">ISOLATED FROM NAMED LOANS</p>
+            </div>
+          </section>
+
+          {/* Headphones Handout Section */}
+          <section className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 flex flex-col relative overflow-hidden">
+            <StatusOverlay status={headphoneStatus} onDismiss={() => setHeadphoneStatus({ message: '', type: null })} />
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
+                <Headphones size={15} className="text-purple-600" /> HEADPHONES HANDOUT
+              </h3>
+              <div className="flex items-center gap-2">
+                {stats.headphonesOut > 0 && (
+                  <span className="text-[9px] font-black px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full border border-purple-300">
+                    {stats.headphonesOut} OUT
+                  </span>
+                )}
+                {user?.role === 'admin' && (
+                  <button 
+                    onClick={handleResetHeadphones}
+                    className="p-1 rounded-lg text-slate-400 hover:text-purple-600 border border-maroon-900 text-[8px] font-black uppercase flex items-center gap-1 transition-colors"
+                    title="Reset Headphones session counter"
+                  >
+                    <RotateCcw size={10} /> RESET
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col flex-1 space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2 space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block text-left">
+                    HEADPHONE # / ASSET TAG *
+                  </label>
+                  <div className="relative">
+                    <Hash size={12} className="absolute left-2.5 top-3 text-slate-400" />
+                    <input 
+                      type="text" 
+                      value={headphoneTag}
+                      onChange={(e) => setHeadphoneTag(e.target.value)}
+                      placeholder="HP-01, Set 4, Tag..."
+                      className="w-full pl-7 pr-2.5 py-2 bg-slate-50 border-2 border-maroon-900 rounded-lg text-xs font-bold focus:ring-1 focus:ring-purple-600 outline-none transition-all placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block text-center">
+                    QTY
+                  </label>
+                  <div className="flex items-center justify-between bg-slate-50 border-2 border-maroon-900 rounded-lg p-1">
+                    <button 
+                      onClick={() => setHeadphoneQuantity(q => Math.max(0, q - 1))}
+                      className="w-6 h-6 rounded bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs hover:bg-slate-300 active:scale-95"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-black text-purple-900">{headphoneQuantity}</span>
+                    <button 
+                      onClick={() => setHeadphoneQuantity(q => q + 1)}
+                      className="w-6 h-6 rounded bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs hover:bg-slate-300 active:scale-95"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block text-left">
+                    CLASSROOM / ROOM #
+                  </label>
+                  <div className="relative">
+                    <DoorOpen size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+                    <input 
+                      type="text"
+                      value={headphoneRoom}
+                      onChange={(e) => setHeadphoneRoom(e.target.value)}
+                      placeholder="e.g. 204, B12"
+                      className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 border-2 border-maroon-900 rounded-lg text-xs font-bold focus:ring-1 focus:ring-purple-600 outline-none transition-all placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block text-left">
+                    TEACHER NAME
+                  </label>
+                  <div className="relative">
+                    <UserIcon size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+                    <input 
+                      type="text"
+                      value={headphoneTeacher}
+                      onChange={(e) => setHeadphoneTeacher(e.target.value)}
+                      placeholder="e.g. Mrs. Smith"
+                      className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 border-2 border-maroon-900 rounded-lg text-xs font-bold focus:ring-1 focus:ring-purple-600 outline-none transition-all placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block text-left">
+                  HANDOUT DATE
+                </label>
+                <div className="relative">
+                  <Calendar size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+                  <input 
+                    type="date"
+                    value={headphoneDate}
+                    onChange={(e) => setHeadphoneDate(e.target.value)}
+                    className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 border-2 border-maroon-900 rounded-lg text-xs font-bold focus:ring-1 focus:ring-purple-600 outline-none uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col gap-2 mt-auto">
+                <button 
+                  onClick={handleHeadphonesLoan}
+                  disabled={!headphoneTag.trim() || headphoneQuantity <= 0}
+                  className="w-full bg-purple-700 hover:bg-purple-800 text-white py-3.5 rounded-xl font-black uppercase tracking-wider text-[10px] shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:grayscale border-2 border-purple-950 flex items-center justify-center gap-2"
+                >
+                  <Headphones size={13} />
+                  {headphoneQuantity > 0 
+                    ? `Hand Out ${headphoneQuantity > 1 ? `${headphoneQuantity}x ` : ''}Headphones` 
+                    : 'Select Quantity & Hand Out'}
+                </button>
+
+                <button 
+                  onClick={() => setIsHeadphoneReportOpen(true)}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-lg font-black uppercase tracking-wider text-[9px] border border-slate-300 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <FileText size={12} className="text-purple-600" />
+                  Headphone History & Reports
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Active Headphones & Instant Return Station */}
+          <section className="col-span-12 lg:col-span-5 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 flex flex-col relative overflow-hidden">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold flex items-center gap-2 text-slate-800 text-[10px] uppercase tracking-widest">
+                <Headphones size={15} className="text-purple-600" /> ACTIVE HEADPHONES OUT ({activeHeadphones.length})
+              </h3>
+              <button 
+                onClick={() => setIsHeadphoneReportOpen(true)}
+                className="text-[9px] font-black text-purple-700 hover:text-purple-900 uppercase tracking-wider flex items-center gap-1 hover:underline"
+              >
+                <Filter size={11} /> Range History
+              </button>
+            </div>
+
+            <div className="flex-1 flex flex-col">
+              {activeHeadphones.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/70 rounded-xl border border-dashed border-slate-200 min-h-[200px]">
+                  <CheckCircle2 size={36} className="text-green-500 mb-2" />
+                  <p className="text-xs font-black text-slate-700 uppercase tracking-wider">All Headphones Returned</p>
+                  <p className="text-[10px] text-slate-400 font-medium mt-1">No outstanding headphone sets currently out in this campus.</p>
+                  <button 
+                    onClick={() => setIsHeadphoneReportOpen(true)}
+                    className="mt-3 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-slate-50"
+                  >
+                    View Return Logs
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[270px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-200">
+                  {activeHeadphones.map(l => (
+                    <div 
+                      key={l.id} 
+                      className="p-3 bg-purple-50/50 border-2 border-purple-200 rounded-xl flex items-center justify-between gap-3 hover:border-purple-300 transition-all shadow-xs"
+                    >
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-900 text-xs uppercase truncate">
+                            {l.teacherName || 'Staff / Teacher'}
+                          </span>
+                          {l.classroom && (
+                            <span className="px-1.5 py-0.5 bg-white text-slate-700 border border-slate-200 text-[9px] font-black rounded uppercase">
+                              RM: {l.classroom}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 bg-purple-200 text-purple-900 text-[10px] font-black rounded border border-purple-300 uppercase">
+                            HP #: {l.assetTag} {l.headphoneCount && l.headphoneCount > 1 ? `(${l.headphoneCount}x)` : ''}
+                          </span>
+                          <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">
+                            {new Date(l.checkoutAt).toLocaleDateString()} {new Date(l.checkoutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => handleReturnHeadphone(l.id)}
+                        disabled={returningHeadphoneId === l.id}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-[10px] font-black uppercase tracking-wider border border-emerald-800 shadow-sm transition-all flex items-center gap-1 shrink-0 disabled:opacity-50"
+                        title="Click to check in and mark returned"
+                      >
+                        {returningHeadphoneId === l.id ? (
+                          'Returning...'
+                        ) : (
+                          <>
+                            <CheckCircle2 size={12} /> Return
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
@@ -2664,6 +3011,18 @@ function MainApp() {
               defaultLocation={selectedLocation}
               currentUserRole={user?.role}
               onHistoryUpdated={() => loadData(selectedLocation)}
+            />
+          )}
+
+          {/* Dedicated Headphones Management & History Report Modal */}
+          {isHeadphoneReportOpen && (
+            <HeadphoneReportModal
+              isOpen={isHeadphoneReportOpen}
+              onClose={() => setIsHeadphoneReportOpen(false)}
+              defaultLocation={selectedLocation}
+              currentUserRole={user?.role}
+              currentUserName={user?.name}
+              onHistoryUpdated={() => loadData(selectedLocation, true)}
             />
           )}
         </AnimatePresence>

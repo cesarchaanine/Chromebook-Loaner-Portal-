@@ -18,23 +18,24 @@ import { db } from './firebase';
 import { Loan, Student, LoanType, LoanReason, LoanStatus, User } from '../types';
 
 export const loanService = {
-  async checkout(data: Omit<Loan, 'id' | 'checkoutAt' | 'status' | 'updatedAt'>) {
+  async checkout(data: Omit<Loan, 'id' | 'checkoutAt' | 'status' | 'updatedAt'> & { checkoutAt?: number }) {
     const now = Date.now();
     return addDoc(collection(db, 'loans'), {
       ...data,
       status: 'active',
-      checkoutAt: now,
+      checkoutAt: data.checkoutAt || now,
       updatedAt: now
     });
   },
 
-  async returnLoan(loanId: string) {
+  async returnLoan(loanId: string, returnTechName?: string) {
     const now = Date.now();
     const loanRef = doc(db, 'loans', loanId);
     return updateDoc(loanRef, {
       status: 'returned',
       returnAt: now,
-      updatedAt: now
+      updatedAt: now,
+      ...(returnTechName ? { returnTechName } : {})
     });
   },
 
