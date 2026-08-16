@@ -15,7 +15,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Loan, Student, LoanType, LoanReason, User } from '../types';
+import { Loan, Student, LoanType, LoanReason, LoanStatus, User } from '../types';
 
 export const loanService = {
   async checkout(data: Omit<Loan, 'id' | 'checkoutAt' | 'status' | 'updatedAt'>) {
@@ -113,6 +113,58 @@ export const loanService = {
     );
     const snapshot = await getDocs(q);
     return snapshot.size;
+  },
+
+  async getStudentLoansHistory(studentId: string) {
+    const q = query(
+      collection(db, 'loans'),
+      where('studentId', '==', studentId),
+      orderBy('checkoutAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
+  },
+
+  async getFilteredLoans(params: {
+    location?: string;
+    startTs?: number;
+    endTs?: number;
+    type?: LoanType | 'all';
+    reason?: LoanReason | 'all';
+    status?: LoanStatus | 'all';
+    studentId?: string;
+  }) {
+    let q = query(collection(db, 'loans'));
+
+    if (params.location && params.location !== 'ALL') {
+      q = query(q, where('location', '==', params.location));
+    }
+    if (params.type && params.type !== 'all') {
+      q = query(q, where('type', '==', params.type));
+    }
+    if (params.reason && params.reason !== 'all') {
+      q = query(q, where('reason', '==', params.reason));
+    }
+    if (params.status && params.status !== 'all') {
+      q = query(q, where('status', '==', params.status));
+    }
+    if (params.studentId) {
+      q = query(q, where('studentId', '==', params.studentId));
+    }
+
+    const snapshot = await getDocs(q);
+    let loans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
+
+    // Client-side date filter & sorting to avoid complex composite index limits
+    if (params.startTs !== undefined && params.startTs !== null) {
+      loans = loans.filter(l => l.checkoutAt >= params.startTs!);
+    }
+    if (params.endTs !== undefined && params.endTs !== null) {
+      loans = loans.filter(l => l.checkoutAt <= params.endTs!);
+    }
+
+    loans.sort((a, b) => b.checkoutAt - a.checkoutAt);
+    return loans;
   }
 };
 

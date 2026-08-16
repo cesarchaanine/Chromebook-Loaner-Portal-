@@ -24,7 +24,11 @@ import {
   Database,
   Users,
   FileText,
-  Sparkles
+  Sparkles,
+  Download,
+  Filter,
+  BarChart3,
+  Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -41,6 +45,8 @@ import {
   User
 } from './types';
 import { loanService, studentService, userService } from './lib/services';
+import { GlobalReportModal } from './components/GlobalReportModal';
+import { StudentHistoryModal } from './components/StudentHistoryModal';
 import Papa from 'papaparse';
 
 // --- Components ---
@@ -573,6 +579,31 @@ function MainApp() {
     isTotalWipe?: boolean;
   } | null>(null);
 
+  // Global Report Modal & Student History Modal States
+  const [isGlobalReportOpen, setIsGlobalReportOpen] = useState(false);
+  const [studentHistoryModalStudent, setStudentHistoryModalStudent] = useState<Student | null>(null);
+  const [studentCategoryStats, setStudentCategoryStats] = useState<{
+    total: number;
+    chromebooks: number;
+    chargers: number;
+    loaner: number;
+    forgotten: number;
+    broken: number;
+    lost: number;
+    dead: number;
+    other: number;
+  }>({
+    total: 0,
+    chromebooks: 0,
+    chargers: 0,
+    loaner: 0,
+    forgotten: 0,
+    broken: 0,
+    lost: 0,
+    dead: 0,
+    other: 0
+  });
+
   // Lock tech to their assigned location
   useEffect(() => {
     if (user?.role === 'tech' && user.location) {
@@ -592,20 +623,62 @@ function MainApp() {
   }, [selectedLocation, user]);
 
   useEffect(() => {
-    const fetchFrequency = async () => {
+    const fetchStudentStats = async () => {
       if (selectedStudent) {
         try {
-          const count = await loanService.getStudentChromebookLoanCount(selectedStudent.id);
-          setStudentLoanCount(count);
+          const history = await loanService.getStudentLoansHistory(selectedStudent.id);
+          const cbCount = history.filter(l => l.type === 'chromebook').length;
+          const chgCount = history.filter(l => l.type === 'charger').length;
+          const loanerCount = history.filter(l => l.reason === 'Loaner').length;
+          const forgCount = history.filter(l => l.reason === 'Forgotten at Home').length;
+          const brkCount = history.filter(l => l.reason === 'Broken').length;
+          const lstCount = history.filter(l => l.reason === 'Lost Chromebook').length;
+          const deadCount = history.filter(l => l.reason === 'CB Dead / Needs Charging').length;
+          const othCount = history.filter(l => l.reason === 'Other' || l.reason === 'Quick').length;
+
+          setStudentLoanCount(cbCount);
+          setStudentCategoryStats({
+            total: history.length,
+            chromebooks: cbCount,
+            chargers: chgCount,
+            loaner: loanerCount,
+            forgotten: forgCount,
+            broken: brkCount,
+            lost: lstCount,
+            dead: deadCount,
+            other: othCount
+          });
         } catch (err) {
-          console.error("Error fetching student loan count:", err);
+          console.error("Error fetching student loan stats:", err);
           setStudentLoanCount(null);
+          setStudentCategoryStats({
+            total: 0,
+            chromebooks: 0,
+            chargers: 0,
+            loaner: 0,
+            forgotten: 0,
+            broken: 0,
+            lost: 0,
+            dead: 0,
+            other: 0
+          });
         }
       } else {
         setStudentLoanCount(null);
+        setStudentCategoryStats({
+          total: 0,
+          chromebooks: 0,
+          chargers: 0,
+          loaner: 0,
+          forgotten: 0,
+          broken: 0,
+          lost: 0,
+          dead: 0,
+          other: 0
+        });
       }
     };
-    fetchFrequency();
+    fetchStudentStats();
   }, [selectedStudent]);
 
   const loadTechs = async () => {
@@ -1417,6 +1490,28 @@ function MainApp() {
           <div className="h-6 w-px bg-white/10 mx-2" />
 
           <div className="flex items-center gap-3">
+             <button
+               onClick={() => setIsGlobalReportOpen(true)}
+               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-maroon-800 hover:bg-maroon-700 border border-maroon-600 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95"
+               title="Open Comprehensive Reports & Category Analytics"
+             >
+               <FileText size={13} className="text-maroon-200" />
+               <span>Reports</span>
+             </button>
+
+             {user?.role === 'admin' && (
+               <a
+                 href="/standalone.html"
+                 download="chromebook-loaner-portal.html"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600/90 border border-emerald-400/50 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-md"
+                 title="Download Standalone HTML File"
+               >
+                 <Download size={13} />
+                 <span>Download HTML</span>
+               </a>
+             )}
              <div className="flex flex-col items-end">
                 <span className="text-[9px] font-black text-white/70 tracking-widest leading-none mb-1">{user?.role === 'admin' ? 'SYSTEM ADMIN' : 'STAFF'}</span>
                 <span className="text-[11px] font-bold text-white leading-none tracking-tight">{user?.name}</span>
@@ -1685,67 +1780,126 @@ function MainApp() {
           </section>
 
           {/* Student Detail Card */}
-          <section className="col-span-12 lg:col-span-3 xl:col-span-3 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-8 flex flex-col relative">
-            <h3 className="font-bold flex items-center gap-2 text-slate-400 text-[10px] uppercase tracking-widest mb-10">
-              <UserIcon size={14} className="text-slate-400" /> STUDENT DETAIL
-            </h3>
+          <section className="col-span-12 lg:col-span-3 xl:col-span-3 bg-white rounded-2xl shadow-md border-2 border-maroon-900 p-6 flex flex-col relative">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold flex items-center gap-2 text-slate-500 text-[10px] uppercase tracking-widest">
+                <UserIcon size={14} className="text-maroon-600" /> STUDENT DETAIL
+              </h3>
+              {selectedStudent && (
+                <button
+                  onClick={() => setStudentHistoryModalStudent(selectedStudent)}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-maroon-50 border border-maroon-300 hover:bg-maroon-100 text-maroon-800 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                  title="View and Export full report for this student"
+                >
+                  <FileText size={11} /> Report
+                </button>
+              )}
+            </div>
             
             {selectedStudent ? (
-              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-10">
-                <div className="grid grid-cols-1 gap-6">
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block underline underline-offset-4 decoration-maroon-600/20">FIRST NAME</label>
-                    <h4 className="text-xl font-black text-maroon-900 uppercase truncate tracking-tight">{firstName}</h4>
+              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-6">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">FIRST NAME</label>
+                    <h4 className="text-base font-black text-maroon-900 uppercase truncate tracking-tight">{firstName}</h4>
                   </div>
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block underline underline-offset-4 decoration-maroon-600/20">LAST NAME</label>
-                    <h4 className="text-xl font-black text-maroon-900 uppercase truncate tracking-tight">{lastName}</h4>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">LAST NAME</label>
+                    <h4 className="text-base font-black text-maroon-900 uppercase truncate tracking-tight">{lastName}</h4>
                   </div>
                 </div>
 
-                <div className="bg-maroon-50 border-2 border-maroon-900 rounded-2xl p-6 flex items-center justify-between group overflow-hidden relative">
+                {/* Main Loan History Banner */}
+                <div 
+                  onClick={() => setStudentHistoryModalStudent(selectedStudent)}
+                  className="bg-maroon-50 border-2 border-maroon-900 rounded-2xl p-4 flex items-center justify-between group overflow-hidden relative cursor-pointer hover:bg-maroon-100/70 transition-all shadow-xs"
+                >
                    <div className="relative z-10">
-                      <span className="text-[10px] font-black text-maroon-600 uppercase tracking-widest block mb-1">Loan History</span>
-                      <p className="text-2xl font-black text-maroon-950 uppercase">
+                      <span className="text-[9px] font-black text-maroon-600 uppercase tracking-widest block mb-0.5">Loan Frequency</span>
+                      <p className="text-xl font-black text-maroon-950 uppercase leading-none">
                         {studentLoanCount !== null ? (
-                          <>Borrowed <span className="text-maroon-600">{studentLoanCount}</span> Times</>
+                          <>CB Borrowed <span className="text-maroon-700">{studentLoanCount}x</span></>
                         ) : (
                           'Loading History...'
                         )}
                       </p>
+                      <span className="text-[8px] font-bold text-maroon-800/80 underline tracking-tight block mt-1">Click to view & export report</span>
                    </div>
-                   <History className="text-maroon-200 absolute -right-2 -bottom-2 w-20 h-20 rotate-12 group-hover:rotate-0 transition-transform duration-500" />
+                   <History className="text-maroon-200 absolute -right-2 -bottom-2 w-16 h-16 rotate-12 group-hover:rotate-0 transition-transform duration-500" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-8 pt-4">
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">STUDENT ID</label>
-                    <span className="text-lg font-black text-slate-900 block tracking-tight">{selectedStudent.id}</span>
+                {/* Category & Reason Counts Breakdown */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Category History</span>
+                    <span className="text-[9px] font-mono font-bold text-slate-400">Total: {studentCategoryStats.total}</span>
                   </div>
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">GRADE</label>
-                    <span className="text-lg font-black text-slate-900 block tracking-tight">{selectedStudent.grade || 'N/A'}</span>
+                  
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter block truncate">CB Loans</span>
+                      <span className="text-sm font-black text-blue-900">{studentCategoryStats.chromebooks}</span>
+                    </div>
+                    <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                      <span className="text-[8px] font-black text-amber-700 uppercase tracking-tighter block truncate">Chargers</span>
+                      <span className="text-sm font-black text-amber-900">{studentCategoryStats.chargers}</span>
+                    </div>
+                    <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <span className="text-[8px] font-black text-emerald-700 uppercase tracking-tighter block truncate">Forgotten</span>
+                      <span className="text-sm font-black text-emerald-900">{studentCategoryStats.forgotten}</span>
+                    </div>
+                    <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg">
+                      <span className="text-[8px] font-black text-rose-700 uppercase tracking-tighter block truncate">Broken</span>
+                      <span className="text-sm font-black text-rose-900">{studentCategoryStats.broken}</span>
+                    </div>
+                    <div className="p-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                      <span className="text-[8px] font-black text-indigo-700 uppercase tracking-tighter block truncate">Lost CB</span>
+                      <span className="text-sm font-black text-indigo-900">{studentCategoryStats.lost}</span>
+                    </div>
+                    <div className="p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <span className="text-[8px] font-black text-yellow-700 uppercase tracking-tighter block truncate">Charging</span>
+                      <span className="text-sm font-black text-yellow-900">{studentCategoryStats.dead}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">STUDENT ID</label>
+                    <span className="text-sm font-black text-slate-900 block font-mono tracking-tight">{selectedStudent.id}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">GRADE</label>
+                    <span className="text-sm font-black text-slate-900 block tracking-tight">{selectedStudent.grade || 'N/A'}</span>
                    </div>
                 </div>
 
-                <div className="space-y-3 pt-4">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block underline underline-offset-4 decoration-maroon-600/20">CAMPUS NAME</label>
-                  <h4 className="text-lg font-black text-maroon-900 uppercase truncate tracking-tight">{selectedStudent.location}</h4>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">CAMPUS NAME</label>
+                  <h4 className="text-xs font-black text-maroon-900 uppercase truncate tracking-tight">{selectedStudent.location}</h4>
                 </div>
 
                 {selectedStudent.email && (
-                  <div className="space-y-3 pt-4">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block underline underline-offset-4 decoration-maroon-600/20">EMAIL ADDRESS</label>
-                    <span className="text-xs font-bold text-slate-600 block truncate">{selectedStudent.email}</span>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">EMAIL ADDRESS</label>
+                    <span className="text-[11px] font-bold text-slate-600 block truncate">{selectedStudent.email}</span>
                   </div>
                 )}
 
-                <div className="pt-8 border-t border-slate-50">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic leading-none">Enrollment Verified</p>
+                {/* Export & Action Buttons */}
+                <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
+                  <button 
+                    onClick={() => setStudentHistoryModalStudent(selectedStudent)}
+                    className="w-full py-2.5 bg-maroon-900 hover:bg-maroon-950 text-white rounded-xl font-black uppercase text-[10px] tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <Download size={13} /> Export Student Report
+                  </button>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic leading-none">Enrollment Verified</p>
                     <button 
                       onClick={() => setSelectedStudent(null)}
-                      className="text-[10px] items-center gap-1.5 text-red-500 font-black uppercase tracking-widest flex hover:underline active:scale-95 transition-all"
+                      className="text-[10px] items-center gap-1 text-red-500 font-black uppercase tracking-widest flex hover:underline active:scale-95 transition-all"
                     >
                       <X size={12} /> Clear
                     </button>
@@ -2366,9 +2520,9 @@ function MainApp() {
               </div>
 
               {/* Report Controls */}
-              <div className="grid grid-cols-12 gap-4">
-                <div className="col-span-8 flex gap-4">
-                   <div className="flex-1 bg-white border-2 border-maroon-900 rounded-lg p-3 relative">
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-12 sm:col-span-7 flex gap-2">
+                   <div className="flex-1 bg-white border-2 border-maroon-900 rounded-lg p-2.5 relative">
                       <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black text-maroon-900 uppercase tracking-widest">FROM</span>
                       <input 
                         type="date" 
@@ -2377,7 +2531,7 @@ function MainApp() {
                         className="w-full bg-transparent text-[10px] font-bold outline-none uppercase"
                       />
                    </div>
-                   <div className="flex-1 bg-white border-2 border-maroon-900 rounded-lg p-3 relative">
+                   <div className="flex-1 bg-white border-2 border-maroon-900 rounded-lg p-2.5 relative">
                       <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black text-maroon-900 uppercase tracking-widest">TO</span>
                       <input 
                         type="date" 
@@ -2387,14 +2541,26 @@ function MainApp() {
                       />
                    </div>
                 </div>
-                <button 
-                  onClick={handleGenerateReport}
-                  disabled={isGeneratingReport}
-                  className="col-span-4 bg-maroon-600 text-white rounded-lg font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-maroon-700 transition-all border-2 border-maroon-950 disabled:opacity-50 shadow-md"
-                >
-                  <History size={14} className={isGeneratingReport ? 'animate-spin' : ''} /> 
-                  {isGeneratingReport ? 'Processing...' : 'Generate Report'}
-                </button>
+                <div className="col-span-12 sm:col-span-5 flex gap-2">
+                  <button 
+                    onClick={handleGenerateReport}
+                    disabled={isGeneratingReport}
+                    className="flex-1 bg-maroon-600 text-white rounded-lg font-black uppercase tracking-widest text-[9px] flex items-center justify-center gap-1.5 hover:bg-maroon-700 transition-all border-2 border-maroon-950 disabled:opacity-50 shadow-md py-2.5"
+                    title="Export Quick CSV for date range"
+                  >
+                    <Download size={12} className={isGeneratingReport ? 'animate-spin' : ''} /> 
+                    {isGeneratingReport ? 'Exporting...' : 'Quick CSV'}
+                  </button>
+
+                  <button 
+                    onClick={() => setIsGlobalReportOpen(true)}
+                    className="flex-1 bg-maroon-900 text-white rounded-lg font-black uppercase tracking-widest text-[9px] flex items-center justify-center gap-1.5 hover:bg-maroon-950 transition-all border-2 border-maroon-950 shadow-md py-2.5"
+                    title="Open Category Filters & Comprehensive Reports"
+                  >
+                    <Filter size={12} className="text-maroon-200" /> 
+                    <span>Category Report</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2491,6 +2657,25 @@ function MainApp() {
                 </div>
               </motion.div>
             </motion.div>
+          )}
+
+          {/* Student Detailed History & Category Report Modal */}
+          {studentHistoryModalStudent && (
+            <StudentHistoryModal
+              isOpen={Boolean(studentHistoryModalStudent)}
+              student={studentHistoryModalStudent}
+              onClose={() => setStudentHistoryModalStudent(null)}
+            />
+          )}
+
+          {/* Global Comprehensive Loan & Category Report Dashboard */}
+          {isGlobalReportOpen && (
+            <GlobalReportModal
+              isOpen={isGlobalReportOpen}
+              onClose={() => setIsGlobalReportOpen(false)}
+              defaultLocation={selectedLocation}
+              currentUserRole={user?.role}
+            />
           )}
         </AnimatePresence>
       </main>
