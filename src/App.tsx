@@ -1499,29 +1499,6 @@ function MainApp() {
                <span>Reports</span>
              </button>
 
-             <button
-               onClick={async () => {
-                 try {
-                   const res = await fetch('/standalone.html');
-                   const text = await res.text();
-                   const blob = new Blob([text], { type: 'text/html;charset=utf-8' });
-                   const link = document.createElement('a');
-                   link.href = URL.createObjectURL(blob);
-                   link.setAttribute('download', 'chromebook-loaner-portal.html');
-                   document.body.appendChild(link);
-                   link.click();
-                   document.body.removeChild(link);
-                   URL.revokeObjectURL(link.href);
-                 } catch (e) {
-                   window.open('/standalone.html', '_blank');
-                 }
-               }}
-               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-emerald-400 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
-               title="Download Single-File Standalone HTML App"
-             >
-               <Download size={13} />
-               <span>Download HTML</span>
-             </button>
              <div className="flex flex-col items-end">
                 <span className="text-[9px] font-black text-white/70 tracking-widest leading-none mb-1">{user?.role === 'admin' ? 'SYSTEM ADMIN' : 'STAFF'}</span>
                 <span className="text-[11px] font-bold text-white leading-none tracking-tight">{user?.name}</span>
